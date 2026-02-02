@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ZPL Print Server</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="{{ url_for('static', path='/tailwindcss-3.4.17.js') }}"></script>
     <script>
         tailwind.config = { darkMode: 'class' }
     </script>
@@ -94,6 +94,19 @@
         </div>
     </div>
 
+    <div id="log-viewer-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center backdrop-blur-sm z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-2xl shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold">Log Detail</h2>
+                <button onclick="closeLog()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            <pre id="modal-log-content" class="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto text-xs font-mono text-gray-700 dark:text-gray-300 max-h-96 whitespace-pre-wrap"></pre>
+            <div class="mt-6 flex justify-end">
+                <button onclick="closeLog()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium">Close</button>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -126,10 +139,10 @@
         pollJobs();
     }
 
-    // --- Polling ---
     async function pollJobs() {
         const res = await fetch('/api/jobs');
         const jobs = await res.json();
+        window.currentJobs = jobs; // Store jobs globally for log viewing
         const tbody = document.getElementById('job-table-body');
         tbody.innerHTML = jobs.map(job => `
             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
@@ -144,7 +157,11 @@
                         ${job.status}
                     </span>
                 </td>
-                <td class="px-6 py-4 text-xs font-mono text-gray-400 truncate max-w-xs" title="${job.log}">${job.log}</td>
+                <td class="px-6 py-4">
+                    <button onclick="viewLog(${job.id})" class="text-xs font-mono text-blue-500 hover:underline truncate max-w-xs block text-left">
+                        ${job.log || 'No log available'}
+                    </button>
+                </td>
             </tr>
         `).join('');
     }
@@ -155,6 +172,18 @@
     // --- Settings ---
     function toggleSettings() {
         document.getElementById('settings-modal').classList.toggle('hidden');
+    }
+
+    function viewLog(id) {
+        const job = window.currentJobs.find(j => j.id === id);
+        if (job) {
+            document.getElementById('modal-log-content').textContent = job.log;
+            document.getElementById('log-viewer-modal').classList.remove('hidden');
+        }
+    }
+
+    function closeLog() {
+        document.getElementById('log-viewer-modal').classList.add('hidden');
     }
 
     async function saveSettings(e) {
