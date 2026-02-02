@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZPL Print Server</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class' }
+    </script>
+    <style>
+        .drag-active { border-color: #3b82f6; background-color: rgba(59, 130, 246, 0.1); }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-200 font-sans">
+
+<div class="container mx-auto p-6 max-w-5xl">
+    
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight">Print Server</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400">PDF to ZPL Automation • Intel N100</p>
+        </div>
+        <button onclick="toggleSettings()" class="bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 px-4 py-2 rounded-lg transition">
+            ⚙️ Settings
+        </button>
+    </div>
+
+    <div id="drop-zone" class="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-10 text-center mb-8 transition-colors cursor-pointer bg-white dark:bg-gray-800 shadow-sm">
+        <input type="file" id="file-input" class="hidden" accept=".pdf">
+        <div class="pointer-events-none">
+            <p class="text-xl font-medium mb-2">Drop PDF Label Here</p>
+            <p class="text-sm text-gray-500">or click to browse</p>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 class="text-lg font-semibold">Recent Jobs</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-gray-50 dark:bg-gray-700/50">
+                    <tr>
+                        <th class="px-6 py-3">ID</th>
+                        <th class="px-6 py-3">File</th>
+                        <th class="px-6 py-3">Source</th>
+                        <th class="px-6 py-3">Status</th>
+                        <th class="px-6 py-3">Log</th>
+                    </tr>
+                </thead>
+                <tbody id="job-table-body" class="divide-y divide-gray-200 dark:divide-gray-700">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 w-full max-w-lg shadow-2xl transform transition-all">
+            <h2 class="text-xl font-bold mb-6">Configuration</h2>
+            <form id="settings-form" onsubmit="saveSettings(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Printer IP</label>
+                        <input type="text" name="printer_ip" value="{{ settings.printer_ip }}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Yahoo Email User</label>
+                        <input type="email" name="email_user" value="{{ settings.email_user }}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">App Password</label>
+                        <input type="password" name="email_pass" placeholder="••••••••" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" name="smart_plug_enabled" id="spe" {% if settings.smart_plug_enabled %}checked{% endif %} class="w-5 h-5 rounded text-blue-600">
+                        <label for="spe">Enable Smart Plug</label>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Plug ON Webhook</label>
+                        <input type="text" name="smart_plug_webhook" value="{{ settings.smart_plug_webhook }}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-xs">
+                        <p class="text-xs text-gray-500 mt-1">Use an IFTTT or Alexa webhook URL</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Plug OFF Webhook</label>
+                        <input type="text" name="smart_plug_off_webhook" value="{{ settings.smart_plug_off_webhook }}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-xs">
+                    </div>
+                </div>
+                <div class="mt-8 flex justify-end gap-3">
+                    <button type="button" onclick="toggleSettings()" class="px-4 py-2 text-gray-500 hover:text-gray-700">Cancel</button>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // --- Dark Mode Logic ---
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+        document.documentElement.classList.remove('dark');
+    }
+
+    // --- Drag & Drop ---
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-active'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-active'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-active');
+        if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', () => { if (fileInput.files.length) uploadFile(fileInput.files[0]); });
+
+    async function uploadFile(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // Optimistic UI update could go here
+        
+        await fetch('/upload', { method: 'POST', body: formData });
+        pollJobs();
+    }
+
+    // --- Polling ---
+    async function pollJobs() {
+        const res = await fetch('/api/jobs');
+        const jobs = await res.json();
+        const tbody = document.getElementById('job-table-body');
+        tbody.innerHTML = jobs.map(job => `
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+                <td class="px-6 py-4 font-mono text-xs text-gray-500">#${job.id}</td>
+                <td class="px-6 py-4 font-medium">${job.filename}</td>
+                <td class="px-6 py-4 text-xs uppercase tracking-wide text-gray-500">${job.source}</td>
+                <td class="px-6 py-4">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                        ${job.status === 'COMPLETED' ? 'bg-green-100 text-green-800' : 
+                          job.status === 'ERROR' ? 'bg-red-100 text-red-800' : 
+                          'bg-yellow-100 text-yellow-800'}">
+                        ${job.status}
+                    </span>
+                </td>
+                <td class="px-6 py-4 text-xs font-mono text-gray-400 truncate max-w-xs" title="${job.log}">${job.log}</td>
+            </tr>
+        `).join('');
+    }
+    
+    setInterval(pollJobs, 2000);
+    pollJobs(); // Initial load
+
+    // --- Settings ---
+    function toggleSettings() {
+        document.getElementById('settings-modal').classList.toggle('hidden');
+    }
+
+    async function saveSettings(e) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        await fetch('/settings', { method: 'POST', body: formData });
+        toggleSettings();
+        alert('Settings Saved');
+    }
+</script>
+</body>
+</html>
