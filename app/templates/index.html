@@ -47,6 +47,7 @@
                         <th class="px-6 py-3">Source</th>
                         <th class="px-6 py-3">Status</th>
                         <th class="px-6 py-3">Log</th>
+                        <th class="px-6 py-3 text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="job-table-body" class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -94,14 +95,26 @@
         </div>
     </div>
 
-    <div id="log-viewer-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center backdrop-blur-sm z-50">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-2xl shadow-2xl">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-lg font-bold">Log Detail</h2>
+    <div id="log-viewer-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center backdrop-blur-sm z-50 p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+                <h2 id="modal-title" class="text-lg font-bold">Job Details</h2>
                 <button onclick="closeLog()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
             </div>
-            <pre id="modal-log-content" class="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto text-xs font-mono text-gray-700 dark:text-gray-300 max-h-96 whitespace-pre-wrap"></pre>
-            <div class="mt-6 flex justify-end">
+            
+            <div class="flex flex-1 overflow-hidden p-6 gap-6">
+                <div class="flex-1 flex flex-col">
+                    <p class="text-xs font-bold uppercase text-gray-500 mb-2">PDF Preview</p>
+                    <iframe id="pdf-preview" class="w-full h-full rounded-lg bg-gray-100 border-none"></iframe>
+                </div>
+                
+                <div class="flex-1 flex flex-col">
+                    <p class="text-xs font-bold uppercase text-gray-500 mb-2">Log / ZPL Output</p>
+                    <pre id="modal-log-content" class="flex-1 bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-auto text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap"></pre>
+                </div>
+            </div>
+
+            <div class="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end">
                 <button onclick="closeLog()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium">Close</button>
             </div>
         </div>
@@ -142,13 +155,13 @@
     async function pollJobs() {
         const res = await fetch('/api/jobs');
         const jobs = await res.json();
-        window.currentJobs = jobs; // Store jobs globally for log viewing
+        window.currentJobs = jobs; 
         const tbody = document.getElementById('job-table-body');
         tbody.innerHTML = jobs.map(job => `
             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
                 <td class="px-6 py-4 font-mono text-xs text-gray-500">#${job.id}</td>
                 <td class="px-6 py-4 font-medium">${job.filename}</td>
-                <td class="px-6 py-4 text-xs uppercase tracking-wide text-gray-500">${job.source}</td>
+                <td class="px-6 py-4 text-xs uppercase tracking-wide text-gray-500">${job.source || 'WEB UI'}</td>
                 <td class="px-6 py-4">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
                         ${job.status === 'COMPLETED' ? 'bg-green-100 text-green-800' : 
@@ -158,9 +171,13 @@
                     </span>
                 </td>
                 <td class="px-6 py-4">
-                    <button onclick="viewLog(${job.id})" class="text-xs font-mono text-blue-500 hover:underline truncate max-w-xs block text-left">
-                        ${job.log || 'No log available'}
+                    <button onclick="viewJob(${job.id})" class="text-xs font-mono text-blue-500 hover:underline truncate max-w-[150px] block text-left">
+                        ${job.log || 'View Details'}
                     </button>
+                </td>
+                <td class="px-6 py-4 text-right space-x-2">
+                    <a href="/download/pdf/${job.id}" target="_blank" title="View PDF" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">📄</a>
+                    <a href="/download/zpl/${job.id}" target="_blank" title="Download ZPL" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">🏷️</a>
                 </td>
             </tr>
         `).join('');
@@ -174,10 +191,17 @@
         document.getElementById('settings-modal').classList.toggle('hidden');
     }
 
-    function viewLog(id) {
+    function viewJob(id) {
         const job = window.currentJobs.find(j => j.id === id);
         if (job) {
-            document.getElementById('modal-log-content').textContent = job.log;
+            document.getElementById('modal-title').textContent = `Job #${job.id}: ${job.filename}`;
+            
+            // Show the log/ZPL even if it's an error
+            document.getElementById('modal-log-content').textContent = job.log || "No log/ZPL data found.";
+            
+            // Set the PDF source (Assuming your backend has a route like /preview/pdf/{id})
+            document.getElementById('pdf-preview').src = `/preview/pdf/${id}`;
+            
             document.getElementById('log-viewer-modal').classList.remove('hidden');
         }
     }
