@@ -18,7 +18,7 @@ if not ENCRYPTION_KEY:
 cipher = Fernet(ENCRYPTION_KEY.encode() if isinstance(ENCRYPTION_KEY, str) else ENCRYPTION_KEY)
 
 # Check if this is first-time setup (marker file created by entrypoint.sh)
-IS_FIRST_RUN = os.path.exists(".env.firstrun")
+IS_FIRST_RUN = os.path.exists("/app/data/.env.firstrun")
 
 
 def encrypt_value(value: str) -> str:

@@ -3,15 +3,18 @@
 
 set -e
 
-# Check if .env exists, if not generate it
-if [ ! -f ".env" ]; then
+# Check if .env exists in workspace, if not generate it
+ENV_FILE="/app/.env"
+MARKER_FILE="/app/data/.env.firstrun"
+
+if [ ! -f "$ENV_FILE" ]; then
     echo "🔐 Generating encryption key for first-time setup..."
     
     # Generate the key
     ENCRYPTION_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
     
-    # Save to .env
-    echo "ENCRYPTION_KEY=$ENCRYPTION_KEY" > .env
+    # Save to mounted .env location so it persists
+    echo "ENCRYPTION_KEY=$ENCRYPTION_KEY" > "$ENV_FILE"
     
     echo "✅ Generated and saved to .env"
     echo ""
@@ -23,7 +26,7 @@ if [ ! -f ".env" ]; then
     echo ""
     echo "⚠️  IMPORTANT:"
     echo "   • This key encrypts your email passwords in the database"
-    echo "   • Back it up securely (it's in .env in the container)"
+    echo "   • Back it up securely (it's in .env in the project root)"
     echo "   • If lost, encrypted passwords cannot be recovered"
     echo "   • Keep it with your database backups"
     echo ""
@@ -31,10 +34,11 @@ if [ ! -f ".env" ]; then
     echo ""
     
     # Create a flag file to indicate first-time setup
-    touch .env.firstrun
+    mkdir -p /app/data
+    touch "$MARKER_FILE"
 else
-    if [ -f ".env.firstrun" ]; then
-        rm .env.firstrun
+    if [ -f "$MARKER_FILE" ]; then
+        rm "$MARKER_FILE"
     fi
 fi
 

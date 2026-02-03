@@ -9,6 +9,7 @@ services:
     volumes:
       - ./:/app/workspace
       - ./data:/app/data
+      - ./.env:/app/.env
     working_dir: /app/workspace
     cpus: 0.5
     mem_limit: 512M
