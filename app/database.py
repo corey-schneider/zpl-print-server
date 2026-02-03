@@ -26,6 +26,14 @@ class Settings(Base):
     email_filter_from = Column(String, default="ebay@ebay.com")
     email_filter_subject = Column(String, default="label")
     email_filter_body = Column(String, default="your shipping label is ready")
+    # eBay API
+    ebay_enabled = Column(Boolean, default=False)
+    _ebay_app_id = Column("ebay_app_id", String, default="")  # Encrypted
+    _ebay_cert_id = Column("ebay_cert_id", String, default="")  # Encrypted
+    _ebay_user_token = Column("ebay_user_token", String, default="")  # Encrypted
+    _ebay_refresh_token = Column("ebay_refresh_token", String, default="")  # Encrypted
+    ebay_token_expiration = Column(DateTime, default=None)
+    ebay_last_check = Column(DateTime, default=None)
     # Smart Plug
     smart_plug_enabled = Column(Boolean, default=False)
     smart_plug_webhook = Column(String, default="") # URL to trigger plug ON
@@ -41,6 +49,46 @@ class Settings(Base):
     def email_pass(self, value: str):
         """Encrypt and store the email password."""
         self._email_pass = encrypt_value(value) if value else ""
+
+    @property
+    def ebay_app_id(self) -> str:
+        """Decrypt and return the eBay app ID."""
+        return decrypt_value(self._ebay_app_id)
+    
+    @ebay_app_id.setter
+    def ebay_app_id(self, value: str):
+        """Encrypt and store the eBay app ID."""
+        self._ebay_app_id = encrypt_value(value) if value else ""
+
+    @property
+    def ebay_cert_id(self) -> str:
+        """Decrypt and return the eBay cert ID."""
+        return decrypt_value(self._ebay_cert_id)
+    
+    @ebay_cert_id.setter
+    def ebay_cert_id(self, value: str):
+        """Encrypt and store the eBay cert ID."""
+        self._ebay_cert_id = encrypt_value(value) if value else ""
+
+    @property
+    def ebay_user_token(self) -> str:
+        """Decrypt and return the eBay user token."""
+        return decrypt_value(self._ebay_user_token)
+    
+    @ebay_user_token.setter
+    def ebay_user_token(self, value: str):
+        """Encrypt and store the eBay user token."""
+        self._ebay_user_token = encrypt_value(value) if value else ""
+
+    @property
+    def ebay_refresh_token(self) -> str:
+        """Decrypt and return the eBay refresh token."""
+        return decrypt_value(self._ebay_refresh_token)
+    
+    @ebay_refresh_token.setter
+    def ebay_refresh_token(self, value: str):
+        """Encrypt and store the eBay refresh token."""
+        self._ebay_refresh_token = encrypt_value(value) if value else ""
 
 class Job(Base):
     __tablename__ = "jobs"
