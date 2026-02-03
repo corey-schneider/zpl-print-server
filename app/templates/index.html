@@ -90,6 +90,7 @@
                 <button onclick="switchTab('printer')" id="tab-printer" class="tab-btn px-4 py-3 font-medium text-sm border-b-2 border-blue-600 text-blue-600">🖨️ Printer</button>
                 <button onclick="switchTab('email')" id="tab-email" class="tab-btn px-4 py-3 font-medium text-sm text-gray-600 dark:text-gray-400">📧 Email</button>
                 <button onclick="switchTab('ebay')" id="tab-ebay" class="tab-btn px-4 py-3 font-medium text-sm text-gray-600 dark:text-gray-400">🛍️ eBay API</button>
+                <button onclick="switchTab('webhooks')" id="tab-webhooks" class="tab-btn px-4 py-3 font-medium text-sm text-gray-600 dark:text-gray-400">🔔 Webhooks</button>
                 <button onclick="switchTab('smartplug')" id="tab-smartplug" class="tab-btn px-4 py-3 font-medium text-sm text-gray-600 dark:text-gray-400">⚡ Smart Plug</button>
             </div>
             
@@ -226,6 +227,70 @@
                             ⬇️ Fetch eBay Labels Now
                         </button>
                         <div id="fetch-ebay-result" class="mt-3 hidden p-3 rounded-lg text-xs"></div>
+                    </div>
+                </div>
+                
+                <!-- eBay Webhooks Tab -->
+                <div id="tab-content-webhooks" class="tab-content p-6 space-y-4 hidden">
+                    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-4">
+                        <p class="text-xs text-green-900 dark:text-green-200 leading-relaxed">
+                            <strong>⚡ Automatic Label Printing:</strong> When you purchase a label on eBay, our webhook immediately fetches the PDF and ZPL files and sends them to your printer—zero manual steps required!
+                        </p>
+                    </div>
+                    
+                    <div class="flex items-center gap-3 mb-4">
+                        <input type="checkbox" name="ebay_webhook_enabled" id="ebay_webhook_enabled" {% if settings.ebay_webhook_enabled %}checked{% endif %} class="w-5 h-5 rounded text-green-600">
+                        <label for="ebay_webhook_enabled" class="text-sm font-medium">Enable eBay Webhooks (Automatic Printing)</label>
+                    </div>
+                    
+                    <div id="webhook-config-fields">
+                        <div class="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                            <p class="text-xs font-bold uppercase text-gray-500 mb-3">Webhook URL</p>
+                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-3">Share this URL with eBay to receive label notifications:</p>
+                            <div class="flex gap-2">
+                                <input type="text" id="webhook-url-display" value="{{ settings.ebay_webhook_url or 'https://your-server-ip:8000/webhooks/ebay' }}" readonly class="flex-1 bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-xs font-mono text-gray-600 dark:text-gray-400">
+                                <button type="button" onclick="copyWebhookUrl()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-medium">
+                                    📋 Copy
+                                </button>
+                            </div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">You'll need to replace "your-server-ip" with your actual public server IP or domain name</p>
+                        </div>
+                        
+                        <div class="bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                            <p class="text-xs font-bold uppercase text-gray-500 mb-3">Webhook Secret</p>
+                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-3">Secure token for verifying eBay webhook requests:</p>
+                            <div class="flex gap-2">
+                                <input type="password" id="webhook-secret-display" value="{{ settings.ebay_webhook_secret or '(not generated)' }}" readonly class="flex-1 bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-xs font-mono text-gray-600 dark:text-gray-400">
+                                <button type="button" id="toggle-secret-btn" onclick="toggleWebhookSecret()" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg text-xs font-medium">
+                                    👁️ Show
+                                </button>
+                            </div>
+                            <button type="button" id="generate-secret-btn" onclick="generateWebhookSecret()" class="w-full mt-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-xs font-medium">
+                                🔑 Generate New Secret
+                            </button>
+                            <div id="generate-secret-result" class="mt-2 hidden p-2 rounded-lg text-xs"></div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Generate this once, then add it to your eBay Developer Console webhook configuration</p>
+                        </div>
+                        
+                        <div class="border-t border-gray-300 dark:border-gray-600 pt-4">
+                            <p class="text-xs font-bold uppercase text-gray-500 mb-3">Webhook Events Log</p>
+                            <button type="button" onclick="loadWebhookEvents()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-xs font-medium">
+                                📊 View Recent Events
+                            </button>
+                            <div id="webhook-events-list" class="mt-3 max-h-96 overflow-y-auto"></div>
+                        </div>
+                        
+                        <div class="border-t border-gray-300 dark:border-gray-600 pt-4 bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 rounded-lg p-4">
+                            <p class="text-xs font-bold text-yellow-900 dark:text-yellow-200 mb-2">📝 Setup Instructions:</p>
+                            <ol class="text-xs text-yellow-800 dark:text-yellow-300 space-y-2 ml-4 list-decimal">
+                                <li>Copy your webhook URL above</li>
+                                <li>Generate and save your webhook secret (keep it private!)</li>
+                                <li>Go to your <a href="https://developer.ebay.com/" target="_blank" class="underline hover:text-yellow-700">eBay Developer Console</a></li>
+                                <li>Add this webhook endpoint to your Application Keys</li>
+                                <li>Set the webhook secret in the console</li>
+                                <li>Check "View Recent Events" to confirm eBay is sending webhooks</li>
+                            </ol>
+                        </div>
                     </div>
                 </div>
                 
@@ -541,6 +606,120 @@
         } finally {
             btn.disabled = false;
             btn.textContent = '⬇️ Fetch eBay Labels Now';
+        }
+    }
+
+    // ===== WEBHOOK FUNCTIONS =====
+    
+    function copyWebhookUrl() {
+        const urlField = document.getElementById('webhook-url-display');
+        navigator.clipboard.writeText(urlField.value).then(() => {
+            const btn = event.target;
+            const oldText = btn.textContent;
+            btn.textContent = '✅ Copied!';
+            setTimeout(() => { btn.textContent = oldText; }, 2000);
+        }).catch(() => {
+            alert('Failed to copy URL');
+        });
+    }
+    
+    function toggleWebhookSecret() {
+        const field = document.getElementById('webhook-secret-display');
+        const btn = document.getElementById('toggle-secret-btn');
+        
+        if (field.type === 'password') {
+            field.type = 'text';
+            btn.textContent = '🔒 Hide';
+        } else {
+            field.type = 'password';
+            btn.textContent = '👁️ Show';
+        }
+    }
+    
+    async function generateWebhookSecret() {
+        const btn = document.getElementById('generate-secret-btn');
+        const resultDiv = document.getElementById('generate-secret-result');
+        const secretField = document.getElementById('webhook-secret-display');
+        
+        btn.disabled = true;
+        btn.textContent = '⏳ Generating...';
+        resultDiv.classList.add('hidden');
+        
+        try {
+            const response = await fetch('/api/generate-webhook-secret', { method: 'POST' });
+            const data = await response.json();
+            
+            resultDiv.classList.remove('hidden');
+            
+            if (data.status === 'success') {
+                secretField.value = data.secret;
+                resultDiv.className = 'p-2 rounded-lg text-xs bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-900 dark:text-green-200';
+                resultDiv.innerHTML = `<strong>✅ Generated!</strong> Save this secret in your eBay Developer Console webhook configuration.`;
+                
+                // Auto-save to server
+                await saveSettings();
+            } else {
+                resultDiv.className = 'p-2 rounded-lg text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200';
+                resultDiv.innerHTML = `<strong>❌ Error:</strong> ${data.message}`;
+            }
+        } catch (err) {
+            resultDiv.classList.remove('hidden');
+            resultDiv.className = 'p-2 rounded-lg text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200';
+            resultDiv.innerHTML = `<strong>❌ Network Error:</strong> ${err.message}`;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '🔑 Generate New Secret';
+        }
+    }
+    
+    async function loadWebhookEvents() {
+        const listDiv = document.getElementById('webhook-events-list');
+        listDiv.innerHTML = '<p class="text-xs text-gray-500">Loading...</p>';
+        
+        try {
+            const response = await fetch('/api/webhook-events?limit=15');
+            const events = await response.json();
+            
+            if (!events || events.length === 0) {
+                listDiv.innerHTML = '<p class="text-xs text-gray-500">No webhook events yet. Once eBay sends a webhook, it will appear here.</p>';
+                return;
+            }
+            
+            let html = '<div class="space-y-2">';
+            for (const event of events) {
+                let statusColor = 'gray';
+                let statusIcon = '⏳';
+                
+                if (event.status === 'COMPLETED') {
+                    statusColor = 'green';
+                    statusIcon = '✅';
+                } else if (event.status === 'FAILED') {
+                    statusColor = 'red';
+                    statusIcon = '❌';
+                } else if (event.status === 'PROCESSING') {
+                    statusColor = 'blue';
+                    statusIcon = '⏳';
+                }
+                
+                const date = new Date(event.received_at).toLocaleString();
+                html += `
+                    <div class="p-2 rounded border border-${statusColor}-300 dark:border-${statusColor}-700 bg-${statusColor}-50 dark:bg-${statusColor}-900/20">
+                        <div class="flex justify-between items-start gap-2">
+                            <div>
+                                <p class="text-xs font-bold">${statusIcon} ${event.event_type}</p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">Order: <code class="font-mono">${event.order_id}</code></p>
+                                <p class="text-xs text-gray-600 dark:text-gray-400">${date}</p>
+                                ${event.job_id ? `<p class="text-xs text-gray-600 dark:text-gray-400">Job ID: <code class="font-mono">${event.job_id}</code></p>` : ''}
+                                ${event.error ? `<p class="text-xs text-red-600 dark:text-red-400">Error: ${event.error}</p>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            html += '</div>';
+            listDiv.innerHTML = html;
+        } catch (err) {
+            listDiv.innerHTML = `<p class="text-xs text-red-500">Error loading events: ${err.message}</p>`;
         }
     }
 

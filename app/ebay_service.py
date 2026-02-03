@@ -272,3 +272,106 @@ class EBayAPI:
         except Exception as e:
             logger.error(f"Error saving label: {e}")
             return {"status": "error", "message": str(e)}
+    async def register_webhook(self, webhook_url: str, webhook_secret: str) -> dict:
+        """
+        Register a webhook with eBay for label notifications.
+        
+        Args:
+            webhook_url: Public URL where this server will receive webhooks (e.g., https://yourserver.com/webhooks/ebay)
+            webhook_secret: Shared secret for HMAC signature verification
+            
+        Returns:
+            Status dict with webhook registration details
+            
+        Reference:
+            https://developer.ebay.com/api-docs/user-defined-subscriptions/webhooks
+        """
+        try:
+            if not await self._refresh_access_token_if_needed():
+                return {
+                    "status": "auth_failed",
+                    "message": "Failed to refresh access token"
+                }
+            
+            headers = self._get_headers()
+            headers["Content-Type"] = "application/json"
+            
+            # eBay webhook payload structure
+            payload = {
+                "deliveryUrl": webhook_url,
+                "eventTypes": [
+                    "FULFILLMENT.LABEL_DOWNLOADED",  # When label is downloaded/purchased
+                    "FULFILLMENT.LABEL_CREATED"      # Alternative event type
+                ],
+                "name": "ZPL Print Server - Label Notifications",
+                "status": "ACTIVE"
+            }
+            
+            # Register webhook
+            response = requests.post(
+                f"https://api.ebay.com/sell/subscription/v1/subscription",
+                json=payload,
+                headers=headers,
+                timeout=10
+            )
+            
+            if response.status_code in [200, 201]:
+                result = response.json()
+                return {
+                    "status": "success",
+                    "message": "Webhook registered successfully with eBay",
+                    "webhook_id": result.get("id", ""),
+                    "url": webhook_url
+                }
+            else:
+                error_msg = response.text
+                logger.error(f"Webhook registration failed: {response.status_code} - {error_msg}")
+                return {
+                    "status": "error",
+                    "message": f"Webhook registration failed: {response.status_code}",
+                    "details": error_msg
+                }
+                
+        except Exception as e:
+            logger.error(f"Error registering webhook: {e}")
+            return {
+                "status": "error",
+                "message": str(e)
+            }
+
+    async def list_webhooks(self) -> dict:
+        """List all registered webhooks for the application."""
+        try:
+            if not await self._refresh_access_token_if_needed():
+                return {
+                    "status": "auth_failed",
+                    "message": "Failed to refresh access token"
+                }
+            
+            headers = self._get_headers()
+            
+            response = requests.get(
+                "https://api.ebay.com/sell/subscription/v1/subscription",
+                headers=headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                webhooks = response.json().get("subscriptions", [])
+                return {
+                    "status": "success",
+                    "webhooks": webhooks,
+                    "count": len(webhooks)
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": f"Failed to list webhooks: {response.status_code}"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error listing webhooks: {e}")
+            return {
+                "status": "error",
+                "message": str(e)
+            }
