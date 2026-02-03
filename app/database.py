@@ -2,6 +2,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Boolean, Text, Da
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
+from app.encryption import encrypt_value, decrypt_value
 
 DATABASE_URL = "sqlite:///./data/printer.db"
 
@@ -19,13 +20,27 @@ class Settings(Base):
     email_enabled = Column(Boolean, default=False)
     imap_server = Column(String, default="imap.mail.yahoo.com")
     email_user = Column(String, default="")
-    email_pass = Column(String, default="")
+    _email_pass = Column("email_pass", String, default="")  # Encrypted storage
     scan_interval = Column(Integer, default=60)
+    # Email Filters (Configurable)
+    email_filter_from = Column(String, default="ebay@ebay.com")
+    email_filter_subject = Column(String, default="label")
+    email_filter_body = Column(String, default="your shipping label is ready")
     # Smart Plug
     smart_plug_enabled = Column(Boolean, default=False)
     smart_plug_webhook = Column(String, default="") # URL to trigger plug ON
     smart_plug_off_webhook = Column(String, default="") # URL to trigger plug OFF
     shutdown_delay = Column(Integer, default=5) # Minutes
+
+    @property
+    def email_pass(self) -> str:
+        """Decrypt and return the email password."""
+        return decrypt_value(self._email_pass)
+    
+    @email_pass.setter
+    def email_pass(self, value: str):
+        """Encrypt and store the email password."""
+        self._email_pass = encrypt_value(value) if value else ""
 
 class Job(Base):
     __tablename__ = "jobs"

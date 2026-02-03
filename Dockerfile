@@ -1,13 +1,8 @@
-# Dockerfile
 FROM python:3.12-slim
 
-# Install system dependencies
-# poppler-utils: required for pdf2image
-# netcat-openbsd: used for network checking
 RUN apt-get update && apt-get install -y \
+    libzbar0 \
     poppler-utils \
-    netcat-openbsd \
-    iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -17,11 +12,11 @@ RUN mkdir -p /app/data
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
 COPY app ./app
+COPY entrypoint.sh .
 
-# Expose Web Port
 EXPOSE 8000
+ENV PYTHONPATH=/app
 
-# Run using Uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run using entrypoint script (handles .env generation and startup)
+ENTRYPOINT ["bash", "entrypoint.sh"]

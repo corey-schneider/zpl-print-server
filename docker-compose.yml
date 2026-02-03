@@ -1,0 +1,19 @@
+services:
+  zpl-service:
+    build: .
+    image: zpl-server:arm64
+    container_name: zpl-print-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app/workspace
+      - ./data:/app/data
+    working_dir: /app/workspace
+    cpus: 0.5
+    mem_limit: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -22,39 +22,39 @@ A FastAPI-based web server that converts PDF documents to ZPL (Zebra Programming
 
 ## Installation
 
-### Local Development
+### Docker Deployment (Recommended)
 
-1. Clone the repository:
+Simply clone and run:
+
 ```bash
 git clone <repository-url>
 cd zpl-print-server
+docker compose up -d --build
 ```
 
-2. Install dependencies:
+The system will:
+1. ✅ Automatically generate an encryption key for password storage
+2. ✅ Create a `.env` file to persist the key
+3. ✅ Initialize the database
+4. ✅ Start the web server on `http://localhost:8000`
+
+**On first startup**, you'll see a yellow banner in the web UI informing you that the encryption key was generated. Back up the `.env` file in a safe location (it's needed to decrypt your stored passwords).
+
+### Local Development
+
+1. Clone and setup:
 ```bash
+git clone <repository-url>
+cd zpl-print-server
 pip install -r requirements.txt
 ```
 
-3. Run the application:
+2. Run the server:
 ```bash
 uvicorn app.main:app --reload
 ```
 
-The web server will start at `http://localhost:8000`
-
-### Docker Deployment
-
-1. Build the Docker image:
-```bash
-docker build -t zpl-print-server .
-```
-
-2. Run the container:
-```bash
-docker run -p 8000:8000 \
-  -v zpl-data:/app/data \
-  zpl-print-server
-```
+The web server will start at `http://localhost:8000`. An encryption key will be automatically generated and saved to `.env`.
 
 ## Configuration
 

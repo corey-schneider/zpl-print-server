@@ -6,7 +6,8 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from app.database import init_db, SessionLocal, Settings, Job
-from app.services import EmailPoller, PrinterManager, convert_pdf_to_zpl
+from app.services import EmailPoller, PrinterManager, LabelConverter
+from app.encryption import IS_FIRST_RUN
 
 DATA_DIR = "/app/data"
 
@@ -34,58 +35,60 @@ async def home(request: Request):
     return templates.TemplateResponse("index.html", {
         "request": request, 
         "jobs": jobs, 
-        "settings": settings
+        "settings": settings,
+        "is_first_run": IS_FIRST_RUN
     })
 
 @app.post("/upload")
 async def manual_upload(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
     content = await file.read()
-    
     db = SessionLocal()
-    try:
-        job = Job(
-            filename=file.filename, 
-            source="Manual UI Upload", 
-            status="PROCESSING"
-        )
-        db.add(job)
-        db.commit()
-        db.refresh(job)
-        job_id = job.id
+    
+    job = Job(filename=file.filename, source="Manual UI Upload", status="READY")
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    job_id = job.id
 
+    try:
+        # Store PDF
         pdf_path = os.path.join(DATA_DIR, f"{job_id}.pdf")
         with open(pdf_path, "wb") as f:
             f.write(content)
 
-        try:
-            zpl = convert_pdf_to_zpl(content)
-            zpl_path = os.path.join(DATA_DIR, f"{job_id}.zpl")
-            with open(zpl_path, "w") as f:
-                f.write(zpl)
+        # Pre-generate ZPL as fallback (in case PDF passthrough fails)
+        converter = LabelConverter()
+        zpl_content = converter.convert_pdf_to_zpl(content, job_id=job_id)
+        zpl_path = os.path.join(DATA_DIR, f"{job_id}.zpl")
+        with open(zpl_path, "w") as f:
+            f.write(zpl_content)
 
-            job.zpl_content = zpl
-            job.status = "COMPLETED"
-            db.commit()
+        job.log = "Ready - will try PDF first, then ZPL fallback"
+        db.commit()
 
-            if background_tasks:
-                mgr = PrinterManager()
-                background_tasks.add_task(mgr.run_job, job_id)
-
-        except Exception as conv_err:
-            job.status = "ERROR"
-            job.log = f"Conversion failed: {str(conv_err)}"
-            db.commit()
-        return JSONResponse({"status": "success", "job_id": job_id})
+        # Start printing in background
+        if background_tasks:
+            mgr = PrinterManager()
+            background_tasks.add_task(mgr.run_job, job_id)
+            
     except Exception as e:
-        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+        job.status = "FAILED"
+        job.log = f"Error: {str(e)}"
+        db.commit()
     finally:
         db.close()
+
+    return JSONResponse({"status": "accepted", "job_id": job_id})
 
 @app.post("/settings")
 async def update_settings(
     printer_ip: str = Form(...),
     email_user: str = Form(...),
     email_pass: str = Form(...),
+    email_filter_from: str = Form(None),
+    email_filter_subject: str = Form(None),
+    email_filter_body: str = Form(None),
+    scan_interval: int = Form(None),
     smart_plug_enabled: bool = Form(False),
     smart_plug_webhook: str = Form(""),
     smart_plug_off_webhook: str = Form("")
@@ -96,6 +99,14 @@ async def update_settings(
     s.email_user = email_user
     if email_pass.strip(): # Only update if provided
         s.email_pass = email_pass
+    if email_filter_from: # Only update if provided
+        s.email_filter_from = email_filter_from
+    if email_filter_subject: # Only update if provided
+        s.email_filter_subject = email_filter_subject
+    if email_filter_body: # Only update if provided
+        s.email_filter_body = email_filter_body
+    if scan_interval: # Only update if provided
+        s.scan_interval = max(10, scan_interval)  # Enforce minimum 10 seconds
     s.smart_plug_enabled = smart_plug_enabled
     s.smart_plug_webhook = smart_plug_webhook
     s.smart_plug_off_webhook = smart_plug_off_webhook
@@ -110,6 +121,14 @@ async def get_jobs():
     data = [{"id": j.id, "filename": j.filename, "status": j.status, "log": j.log, "time": j.created_at.isoformat()} for j in jobs]
     db.close()
     return data
+
+@app.get("/preview/zpl/{job_id}")
+async def preview_job(job_id: int):
+    """Preview the rendered ZPL as a PNG image."""
+    file_path = os.path.join(DATA_DIR, f"{job_id}_preview.png")
+    if os.path.exists(file_path):
+        return FileResponse(file_path, media_type="image/png")
+    raise HTTPException(status_code=404, detail="Preview image not found. Job may still be processing.")
 
 @app.get("/preview/pdf/{job_id}")
 async def preview_pdf(job_id: int):
@@ -140,3 +159,12 @@ async def download_zpl(job_id: int):
             filename=f"label_{job_id}.zpl"
         )
     raise HTTPException(status_code=404, detail="ZPL file not found on disk.")
+
+@app.post("/api/test-email")
+async def test_email():
+    """Manually trigger email polling for testing."""
+    try:
+        result = await email_poller.poll()
+        return JSONResponse(result if result else {"status": "success", "message": "Email poll completed"})
+    except Exception as e:
+        return JSONResponse({"status": "failed", "reason": str(e)}, status_code=500)

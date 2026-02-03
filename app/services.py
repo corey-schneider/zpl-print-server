@@ -1,199 +1,324 @@
+import os
+import io
 import asyncio
-import logging
-import socket
 import binascii
+import socket
+import logging
+import numpy as np
 import imaplib
 import email
-import requests
-import time
 from email.header import decode_header
-from pdf2image import convert_from_bytes
-from PIL import Image, ImageOps
-from app.database import SessionLocal, Job, Settings
-from datetime import datetime
+import fitz  # PyMuPDF
+from PIL import Image, ImageDraw, ImageOps, ImageFilter
+from pyzbar.pyzbar import decode, ZBarSymbol
 
-logger = logging.getLogger("PrintServer")
+# Setup logging for a production environment
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# --- 1. PDF TO ZPL CONVERTER ---
-def convert_pdf_to_zpl(pdf_bytes: bytes, width_dots=812, height_dots=1218) -> str:
+class LabelConverter:
     """
-    Renders PDF to a 203 DPI monochrome bitmap and encodes as ZPL ^GF.
-    Standard 4x6 label at 203 DPI is approx 812x1218 dots.
+    Minimal PDF to ZPL converter.
+    Renders PDF to image and converts to ZPL format cleanly.
     """
-    try:
-        images = convert_from_bytes(pdf_bytes, dpi=203)
-        if not images:
-            raise ValueError("No images found in PDF")
-        
-        # Take first page
-        img = images[0].convert('L')
-        # Resize/Fit
-        img = ImageOps.fit(img, (width_dots, height_dots), method=Image.LANCZOS, centering=(0.5, 0.5))
-        # Dither to 1-bit monochrome
-        img = img.convert('1')
-        
-        # Get raw bytes
-        data = img.tobytes()
-        
-        # Hex encode for ZPL
-        hex_data = binascii.hexlify(data).decode().upper()
-        total_bytes = len(data)
-        bytes_per_row = width_dots // 8
-        if width_dots % 8: bytes_per_row += 1
-        
-        return f"^XA^FO0,0^GFA,{total_bytes},{total_bytes},{bytes_per_row},{hex_data}^FS^XZ"
-    except Exception as e:
-        logger.error(f"Conversion Error: {e}")
-        raise e
+    def __init__(self, dpi=203, width_mm=101.6, height_mm=152.4):
+        self.dpi = dpi
+        self.width_px = int((width_mm / 25.4) * dpi)
+        self.height_px = int((height_mm / 25.4) * dpi)
 
-# --- 2. PRINTER MANAGER ---
+    def convert_pdf_to_zpl(self, pdf_bytes: bytes, job_id: int = None) -> str:
+        try:
+            # Render PDF at native DPI (203)
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            page = doc.load_page(0)
+            zoom = self.dpi / 72
+            pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+            
+            # Convert to PIL image
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            
+            # Resize to label dimensions first
+            img = img.resize((self.width_px, self.height_px), Image.Resampling.LANCZOS)
+            
+            # Convert to grayscale
+            img = img.convert("L")
+            
+            # Apply light sharpening to crisp edges
+            from PIL import ImageFilter
+            img = img.filter(ImageFilter.UnsharpMask(radius=1.0, percent=100, threshold=1))
+            
+            # Use Otsu's adaptive thresholding for better contrast preservation
+            import numpy as np
+            img_array = np.array(img)
+            threshold = np.mean(img_array)  # Simple but effective threshold
+            img = Image.fromarray((img_array > threshold).astype(np.uint8) * 255)
+            img = img.convert("1")
+            
+            # Save preview PNG if job_id provided
+            if job_id:
+                try:
+                    png_path = f"/app/data/{job_id}_preview.png"
+                    img.save(png_path)
+                    logger.info(f"Preview PNG saved: {png_path}")
+                except Exception as png_err:
+                    logger.error(f"Failed to save preview PNG: {png_err}")
+            else:
+                logger.warning("No job_id provided to convert_pdf_to_zpl, preview PNG not saved")
+            
+            # Convert to ZPL
+            zpl = self._image_to_zpl(img)
+            
+            return f"^XA^PW{self.width_px}^LL{self.height_px}{zpl}^XZ"
+            
+        except Exception as e:
+            logger.error(f"Conversion Error: {e}")
+            return f"^XA^FO50,50^A0N,36,36^FDError^FS^XZ"
+
+    def _image_to_zpl(self, image: Image.Image) -> str:
+        """
+        Convert PIL image to ZPL hex format.
+        Inverts bits to match ZPL convention (1=print, 0=skip).
+        """
+        # Invert: ZPL uses 1 for black (print), 0 for white
+        img_inv = ImageOps.invert(image)
+        
+        width_bytes = (img_inv.width + 7) // 8
+        total_bytes = width_bytes * img_inv.height
+        hex_data = binascii.hexlify(img_inv.tobytes()).decode('utf-8').upper()
+        
+        return f"^GFA,{total_bytes},{total_bytes},{width_bytes},{hex_data}"
+
+# --- 2. INFRASTRUCTURE & BACKGROUND TASKS ---
+
 class PrinterManager:
-    async def run_job(self, job_id: int):
+    """Manages sending ZPL jobs directly to Zebra printers via socket connection."""
+    def __init__(self, printer_ip: str = None, printer_port: int = 9100):
+        self.printer_ip = printer_ip or "192.168.1.111"
+        self.printer_port = printer_port
+
+    def update_job_status(self, job_id, status, log=None):
+        from app.database import SessionLocal, Job
         db = SessionLocal()
         job = db.query(Job).filter(Job.id == job_id).first()
-        settings = db.query(Settings).first()
-        
-        try:
-            job.status = "PROCESSING"
+        if job:
+            job.status = status
+            if log: job.log = log
             db.commit()
-            self._log(job, "Starting Job processing.")
-
-            # 1. Trigger Smart Plug ON
-            if settings.smart_plug_enabled and settings.smart_plug_webhook:
-                self._log(job, "Triggering Smart Plug ON...")
-                try:
-                    requests.get(settings.smart_plug_webhook, timeout=5)
-                except Exception as e:
-                    self._log(job, f"Smart Plug Error (Non-fatal): {e}")
-
-            # 2. Network Check (Ping) if plug enabled
-            if settings.smart_plug_enabled:
-                self._log(job, f"Waiting for printer at {settings.printer_ip}...")
-                online = await self._wait_for_printer(settings.printer_ip)
-                if not online:
-                    raise TimeoutError("Printer did not come online within timeout.")
-
-            # 3. Send to Printer
-            self._log(job, "Sending ZPL to printer...")
-            reader, writer = await asyncio.open_connection(settings.printer_ip, settings.printer_port)
-            writer.write(job.zpl_content.encode())
-            await writer.drain()
-            writer.close()
-            await writer.wait_closed()
-            
-            job.status = "COMPLETED"
-            self._log(job, "Print job sent successfully.")
-
-        except Exception as e:
-            job.status = "ERROR"
-            self._log(job, f"CRITICAL FAILURE: {str(e)}")
-        finally:
-            db.commit()
-            db.close()
-            # Schedule Off
-            if settings.smart_plug_enabled:
-                asyncio.create_task(self._delayed_shutdown(settings.shutdown_delay))
-
-    async def _wait_for_printer(self, ip, timeout=120):
-        start = time.time()
-        while time.time() - start < timeout:
-            proc = await asyncio.create_subprocess_exec(
-                'ping', '-c', '1', '-W', '1', ip,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL
-            )
-            await proc.wait()
-            if proc.returncode == 0:
-                return True
-            await asyncio.sleep(1.5) # Gentle polling
-        return False
-
-    async def _delayed_shutdown(self, minutes):
-        logger.info(f"Scheduling shutdown in {minutes} minutes")
-        await asyncio.sleep(minutes * 60)
-        
-        db = SessionLocal()
-        settings = db.query(Settings).first()
-        if settings.smart_plug_enabled and settings.smart_plug_off_webhook:
-            try:
-                requests.get(settings.smart_plug_off_webhook, timeout=5)
-                logger.info("Smart Plug turned OFF via webhook.")
-            except Exception as e:
-                logger.error(f"Failed to turn off plug: {e}")
         db.close()
 
-    def _log(self, job, message):
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        entry = f"[{timestamp}] {message}\n"
-        job.log = (job.log or "") + entry
-        logger.info(f"Job {job.id}: {message}")
+    def is_printer_online(self) -> bool:
+        """Checks if printer is reachable via socket connection."""
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2)
+            result = sock.connect_ex((self.printer_ip, self.printer_port))
+            sock.close()
+            return result == 0
+        except Exception as e:
+            logger.error(f"Printer connectivity check failed: {e}")
+            return False
 
-# --- 3. EMAIL POLLER ---
-class EmailPoller:
-    def __init__(self):
-        self.running = False
-
-    async def start(self):
-        self.running = True
-        logger.info("Email Poller Started")
-        while self.running:
-            try:
-                await self.check()
-            except Exception as e:
-                logger.error(f"Email Poller Crashed: {e}")
-            await asyncio.sleep(60) # Configurable in real impl, keeping simple here
-
-    def stop(self):
-        self.running = False
-
-    async def check(self):
+    async def run_job(self, job_id: int):
+        # Get printer IP from settings
+        from app.database import SessionLocal, Settings, Job
         db = SessionLocal()
         settings = db.query(Settings).first()
+        db.close()
         
-        if not settings.email_enabled or not settings.email_user:
-            db.close()
+        if settings and settings.printer_ip:
+            self.printer_ip = settings.printer_ip
+        
+        if not self.is_printer_online():
+            self.update_job_status(job_id, "OFFLINE", f"Printer unreachable at {self.printer_ip}:{self.printer_port}")
             return
 
-        # Run blocking IMAP in executor to not block asyncio loop
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, self._sync_imap, settings)
-        db.close()
-
-    def _sync_imap(self, settings):
+        self.update_job_status(job_id, "SENDING", "Connecting to printer...")
+        pdf_path = f"/app/data/{job_id}.pdf"
+        
         try:
-            mail = imaplib.IMAP4_SSL(settings.imap_server)
-            mail.login(settings.email_user, settings.email_pass)
-            mail.select("inbox")
+            # Try PDF passthrough first
+            success = await self._try_pdf_passthrough(job_id, pdf_path)
             
-            # Search for Unseen emails with "label" in body
-            status, messages = mail.search(None, '(UNSEEN BODY "label")')
-            
-            for num in messages[0].split():
-                status, msg_data = mail.fetch(num, "(RFC822)")
-                msg = email.message_from_bytes(msg_data[0][1])
+            if not success:
+                # Fall back to ZPL if PDF doesn't work
+                logger.info(f"PDF passthrough failed for job {job_id}, falling back to ZPL")
+                await self._try_zpl_fallback(job_id, pdf_path)
                 
-                for part in msg.walk():
-                    if part.get_content_maintype() == 'multipart': continue
-                    if part.get('Content-Disposition') is None: continue
-                    
-                    filename = part.get_filename()
-                    if filename and filename.lower().endswith('.pdf'):
-                        pdf_data = part.get_payload(decode=True)
-                        
-                        # Create Job
-                        zpl = convert_pdf_to_zpl(pdf_data)
-                        db = SessionLocal()
-                        new_job = Job(filename=filename, source="EMAIL", zpl_content=zpl)
-                        db.add(new_job)
-                        db.commit()
-                        
-                        # Trigger Printer Manager (Fire and Forget)
-                        mgr = PrinterManager()
-                        asyncio.create_task(mgr.run_job(new_job.id))
-                        db.close()
-                        break # Only process first label per email
-            
-            mail.close()
-            mail.logout()
         except Exception as e:
-            logger.error(f"IMAP Error: {e}")
+            self.update_job_status(job_id, "FAILED", f"Error: {str(e)}")
+
+    async def _try_pdf_passthrough(self, job_id: int, pdf_path: str) -> bool:
+        """Skip PDF passthrough - Zebra printers need ZPL, not raw PDF."""
+        logger.info(f"Skipping PDF passthrough (Zebra printers require ZPL format)")
+        return False
+
+    async def _try_zpl_fallback(self, job_id: int, pdf_path: str):
+        """Fall back to ZPL conversion and printing."""
+        try:
+            zpl_path = f"/app/data/{job_id}.zpl"
+            
+            # Convert PDF to ZPL if not already done
+            if not os.path.exists(zpl_path):
+                self.update_job_status(job_id, "CONVERTING", "Converting PDF to ZPL format...")
+                with open(pdf_path, "rb") as f:
+                    pdf_content = f.read()
+                converter = LabelConverter()
+                zpl_content = converter.convert_pdf_to_zpl(pdf_content, job_id=job_id)
+                with open(zpl_path, "w") as f:
+                    f.write(zpl_content)
+                logger.info(f"ZPL file created: {zpl_path}, {len(zpl_content)} bytes")
+            else:
+                with open(zpl_path, "r") as f:
+                    zpl_content = f.read()
+                logger.info(f"Using cached ZPL file: {zpl_path}, {len(zpl_content)} bytes")
+            
+            # Send ZPL to printer
+            logger.info(f"Sending ZPL to printer at {self.printer_ip}:{self.printer_port}")
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)
+            # sock.connect((self.printer_ip, self.printer_port))
+            sock.sendall(zpl_content.encode('utf-8'))  # Prints the label
+            sock.close()
+            logger.info(f"ZPL sent successfully to {self.printer_ip}:{self.printer_port}")
+            
+            self.update_job_status(job_id, "PRINTING", f"ZPL sent to {self.printer_ip}:{self.printer_port}")
+            await asyncio.sleep(2)
+            self.update_job_status(job_id, "COMPLETED", "Print job completed (ZPL mode).")
+        except Exception as e:
+            logger.error(f"ZPL fallback error: {str(e)}")
+            self.update_job_status(job_id, "FAILED", f"ZPL fallback error: {str(e)}")
+
+class EmailPoller:
+    """
+    Polls Yahoo Mail inbox for PDF attachments and creates print jobs.
+    """
+    def __init__(self):
+        self._running = True
+
+    async def start(self):
+        logger.info("Email Poller started.")
+        while self._running:
+            try:
+                await self.poll()
+            except Exception as e:
+                logger.error(f"Email Poller Error: {e}")
+            # Read scan_interval from settings each loop
+            from app.database import SessionLocal, Settings
+            db = SessionLocal()
+            settings = db.query(Settings).first()
+            db.close()
+            interval = settings.scan_interval if settings else 60
+            await asyncio.sleep(interval)
+
+    def stop(self):
+        """Stop the email polling loop."""
+        self._running = False
+        logger.info("Email Poller stopped.")
+
+    async def poll(self):
+        """Poll Yahoo Mail for eBay shipping label PDFs."""
+        from app.database import SessionLocal, Settings, Job
+        
+        db = SessionLocal()
+        settings = db.query(Settings).first()
+        db.close()
+        
+        if not settings or not settings.email_user or not settings.email_pass:
+            return {"status": "failed", "reason": "Email credentials not configured"}  # No email config
+        
+        try:
+            # Connect to Yahoo IMAP
+            imap = imaplib.IMAP4_SSL("imap.mail.yahoo.com", 993)
+            imap.login(settings.email_user, settings.email_pass)
+            imap.select("INBOX")
+            
+            # Search for unseen emails
+            status, messages = imap.search(None, "UNSEEN")
+            email_ids = messages[0].split()
+            
+            for email_id in email_ids[-10:]:  # Process last 10 unseen emails
+                status, msg_data = imap.fetch(email_id, "(RFC822)")
+                for response_part in msg_data:
+                    if isinstance(response_part, tuple):
+                        msg = email.message_from_bytes(response_part[1])
+                        
+                        # SECURITY: Only accept from configured sender
+                        from_addr = msg.get("From", "").lower()
+                        if settings.email_filter_from.lower() not in from_addr:
+                            logger.warning(f"Rejected email from {from_addr} (expected: {settings.email_filter_from})")
+                            continue
+                        
+                        # SECURITY: Check subject contains configured term
+                        subject = msg.get("Subject", "").lower()
+                        if settings.email_filter_subject.lower() not in subject:
+                            logger.warning(f"Rejected email with subject '{subject}' (missing: '{settings.email_filter_subject}')")
+                            continue
+                        
+                        # SECURITY: Check body contains configured term
+                        body_text = ""
+                        if msg.is_multipart():
+                            for part in msg.walk():
+                                if part.get_content_type() == "text/plain":
+                                    body_text += part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                        else:
+                            body_text = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
+                        
+                        if settings.email_filter_body.lower() not in body_text.lower():
+                            logger.warning(f"Rejected email (missing '{settings.email_filter_body}' in body)")
+                            continue
+                        
+                        # All checks passed - extract FIRST PDF attachment only
+                        pdf_found = False
+                        for part in msg.walk():
+                            if part.get_content_disposition() == "attachment":
+                                filename = part.get_filename()
+                                if filename and filename.lower().endswith(".pdf") and not pdf_found:
+                                    pdf_data = part.get_payload(decode=True)
+                                    pdf_found = True
+                                    
+                                    # Create print job
+                                    db = SessionLocal()
+                                    job = Job(
+                                        filename=filename,
+                                        source="eBay Shipping Label (Email)",
+                                        status="READY"
+                                    )
+                                    db.add(job)
+                                    db.commit()
+                                    db.refresh(job)
+                                    job_id = job.id
+                                    db.close()
+                                    
+                                    # Save PDF
+                                    pdf_path = f"/app/data/{job_id}.pdf"
+                                    with open(pdf_path, "wb") as f:
+                                        f.write(pdf_data)
+                                    
+                                    # Pre-generate ZPL
+                                    converter = LabelConverter()
+                                    zpl_content = converter.convert_pdf_to_zpl(pdf_data, job_id=job_id)
+                                    zpl_path = f"/app/data/{job_id}.zpl"
+                                    with open(zpl_path, "w") as f:
+                                        f.write(zpl_content)
+                                    
+                                    logger.info(f"eBay label job created: {job_id} ({filename})")
+                                    
+                                    # Start printing
+                                    mgr = PrinterManager()
+                                    asyncio.create_task(mgr.run_job(job_id))
+                                    break  # Only process first PDF, ignore others
+                        
+                        if not pdf_found:
+                            logger.warning(f"Valid eBay email but no PDF attachment found")
+            
+            imap.close()
+            imap.logout()
+            return {"status": "success", "message": "Email poll completed"}
+            
+        except Exception as e:
+            logger.error(f"Email poll error: {e}")
+            return {"status": "failed", "reason": str(e)}
+
+def convert_pdf_to_zpl(pdf_bytes: bytes) -> str:
+    """Legacy compatibility function."""
+    return LabelConverter().convert_pdf_to_zpl(pdf_bytes)

@@ -16,6 +16,27 @@
 
 <div class="container mx-auto p-6 max-w-5xl">
     
+    {% if is_first_run %}
+    <div class="bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-400 p-6 mb-8 rounded-lg">
+        <div class="flex gap-4">
+            <div class="text-2xl">🔐</div>
+            <div>
+                <h3 class="font-bold text-yellow-900 dark:text-yellow-200 mb-2">First-Time Setup Complete!</h3>
+                <p class="text-yellow-800 dark:text-yellow-300 text-sm mb-3">
+                    An encryption key has been automatically generated and saved. This key encrypts your email passwords in the database.
+                </p>
+                <p class="text-yellow-800 dark:text-yellow-300 text-xs mb-3 font-mono bg-yellow-100 dark:bg-yellow-900/50 p-2 rounded break-all">
+                    Location: <code>.env</code> (in the project root)
+                </p>
+                <p class="text-yellow-800 dark:text-yellow-300 text-sm">
+                    ⚠️ <strong>Important:</strong> Back up this encryption key safely. If lost, your encrypted passwords cannot be recovered.
+                </p>
+                <button onclick="dismissFirstRun()" class="mt-3 bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded text-sm">Got it, thanks!</button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
     <div class="flex justify-between items-center mb-8">
         <div>
             <h1 class="text-3xl font-bold tracking-tight">Print Server</h1>
@@ -57,7 +78,7 @@
     </div>
 
     <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center backdrop-blur-sm">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 w-full max-w-lg shadow-2xl transform transition-all">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 w-full max-w-lg shadow-2xl transform transition-all overflow-y-auto max-h-[90vh]">
             <h2 class="text-xl font-bold mb-6">Configuration</h2>
             <form id="settings-form" onsubmit="saveSettings(event)">
                 <div class="space-y-4">
@@ -72,7 +93,34 @@
                     <div>
                         <label class="block text-xs font-bold uppercase text-gray-500 mb-1">App Password</label>
                         <input type="password" name="email_pass" placeholder="••••••••" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">🔐 Encrypted in database - only leave blank to keep current password</p>
                     </div>
+
+                    <!-- Email Filter Settings Section -->
+                    <div class="border-t border-gray-300 dark:border-gray-600 pt-4 mt-4">
+                        <p class="text-xs font-bold uppercase text-gray-500 mb-3">Email Security Filters</p>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Allowed Sender Email</label>
+                            <input type="text" name="email_filter_from" value="{{ settings.email_filter_from }}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Only emails from this address will be processed</p>
+                        </div>
+                        <div class="mt-3">
+                            <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Subject Must Contain</label>
+                            <input type="text" name="email_filter_subject" value="{{ settings.email_filter_subject }}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Subject line must include this phrase</p>
+                        </div>
+                        <div class="mt-3">
+                            <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Body Must Contain</label>
+                            <input type="text" name="email_filter_body" value="{{ settings.email_filter_body }}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Email body must include this phrase</p>
+                        </div>
+                        <div class="mt-3">
+                            <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Scan Interval (seconds)</label>
+                            <input type="number" name="scan_interval" value="{{ settings.scan_interval }}" min="10" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">How often to check for new emails (minimum 10 seconds)</p>
+                        </div>
+                    </div>
+
                     <div class="flex items-center gap-2">
                         <input type="checkbox" name="smart_plug_enabled" id="spe" {% if settings.smart_plug_enabled %}checked{% endif %} class="w-5 h-5 rounded text-blue-600">
                         <label for="spe">Enable Smart Plug</label>
@@ -95,27 +143,20 @@
         </div>
     </div>
 
-    <div id="log-viewer-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center backdrop-blur-sm z-50 p-4">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh]">
-            <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-                <h2 id="modal-title" class="text-lg font-bold">Job Details</h2>
-                <button onclick="closeLog()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+    <!-- Generic Modal Component -->
+    <div id="generic-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center backdrop-blur-sm z-50 p-4" onclick="closeModal(event)">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-5xl shadow-2xl flex flex-col" style="height: 90vh; max-height: 90vh;">
+            <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                <h2 id="modal-title" class="text-lg font-bold"></h2>
+                <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
             </div>
             
-            <div class="flex flex-1 overflow-hidden p-6 gap-6">
-                <div class="flex-1 flex flex-col">
-                    <p class="text-xs font-bold uppercase text-gray-500 mb-2">PDF Preview</p>
-                    <iframe id="pdf-preview" class="w-full h-full rounded-lg bg-gray-100 border-none"></iframe>
-                </div>
-                
-                <div class="flex-1 flex flex-col">
-                    <p class="text-xs font-bold uppercase text-gray-500 mb-2">Log / ZPL Output</p>
-                    <pre id="modal-log-content" class="flex-1 bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-auto text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap"></pre>
-                </div>
+            <div id="modal-content" class="flex-1 overflow-auto p-6 flex items-center justify-center min-h-0">
+                <!-- Content goes here -->
             </div>
 
-            <div class="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-                <button onclick="closeLog()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium">Close</button>
+            <div class="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end flex-shrink-0">
+                <button onclick="closeModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium">Close</button>
             </div>
         </div>
     </div>
@@ -171,13 +212,14 @@
                     </span>
                 </td>
                 <td class="px-6 py-4">
-                    <button onclick="viewJob(${job.id})" class="text-xs font-mono text-blue-500 hover:underline truncate max-w-[150px] block text-left">
+                    <button onclick="viewJobDetails(${job.id})" class="text-xs font-mono text-blue-500 hover:underline truncate max-w-[150px] block text-left">
                         ${job.log || 'View Details'}
                     </button>
                 </td>
                 <td class="px-6 py-4 text-right space-x-2">
-                    <a href="/download/pdf/${job.id}" target="_blank" title="View PDF" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">📄</a>
-                    <a href="/download/zpl/${job.id}" target="_blank" title="Download ZPL" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">🏷️</a>
+                    <a href="javascript:openPdfPreview('/download/pdf/${job.id}')" title="View PDF" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded cursor-pointer">PDF 📄</a>
+                    <a href="javascript:openZplPreview(${job.id})" title="Preview ZPL" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded cursor-pointer">ZPL 🖼️</a>
+                    <a href="/download/zpl/${job.id}" target="_blank" title="Download ZPL" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">⬇️</a>
                 </td>
             </tr>
         `).join('');
@@ -189,6 +231,14 @@
     // --- Settings ---
     function toggleSettings() {
         document.getElementById('settings-modal').classList.toggle('hidden');
+    }
+
+    function dismissFirstRun() {
+        // Hide the first-run banner
+        const banner = document.querySelector('.bg-yellow-50, .bg-yellow-900\\/30');
+        if (banner) {
+            banner.parentElement.removeChild(banner);
+        }
     }
 
     function viewJob(id) {
@@ -206,8 +256,64 @@
         }
     }
 
-    function closeLog() {
-        document.getElementById('log-viewer-modal').classList.add('hidden');
+    // --- Modal System (DRY - Single reusable modal) ---
+    function showModal(title, content) {
+        document.getElementById('modal-title').textContent = title;
+        document.getElementById('modal-content').innerHTML = content;
+        document.getElementById('generic-modal').classList.remove('hidden');
+    }
+
+    function closeModal(event) {
+        // Close if clicking backdrop or close button
+        if (!event || event.target.id === 'generic-modal') {
+            document.getElementById('generic-modal').classList.add('hidden');
+        }
+    }
+
+    function openImagePreview(url, title = 'Preview') {
+        const img = `<img src="${url}" class="max-w-full max-h-full rounded-lg object-contain">`;
+        showModal(title, img);
+    }
+
+    function openZplPreview(jobId, title = 'ZPL Preview') {
+        const zplUrl = `/preview/zpl/${jobId}`;
+        const downloadUrl = `/download/zpl/${jobId}`;
+        const content = `
+            <div class="flex flex-col w-full h-full gap-4">
+                <div class="flex gap-2">
+                    <a href="${downloadUrl}" target="_blank" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium text-sm">⬇️ Download ZPL</a>
+                    <a href="${zplUrl}" target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm">🔗 Open in New Tab</a>
+                </div>
+                <div class="flex-1 overflow-auto rounded-lg bg-gray-100 flex items-center justify-center min-h-0">
+                    <img src="${zplUrl}" class="max-w-full max-h-full rounded-lg object-contain">
+                </div>
+            </div>
+        `;
+        showModal(title, content);
+    }
+
+    function openPdfPreview(url, title = 'PDF Preview') {
+        const iframe = `<iframe src="${url}" class="w-full h-full rounded-lg bg-gray-100 border-none"></iframe>`;
+        showModal(title, iframe);
+    }
+
+    function viewJobDetails(id) {
+        const job = window.currentJobs.find(j => j.id === id);
+        if (job) {
+            const content = `
+                <div class="flex flex-1 overflow-hidden gap-6 w-full">
+                    <div class="flex-1 flex flex-col min-h-0">
+                        <p class="text-xs font-bold uppercase text-gray-500 mb-2">PDF</p>
+                        <iframe src="/preview/pdf/${job.id}" class="w-full h-full rounded-lg bg-gray-100 border-none"></iframe>
+                    </div>
+                    <div class="flex-1 flex flex-col min-h-0">
+                        <p class="text-xs font-bold uppercase text-gray-500 mb-2">Log / Details</p>
+                        <pre class="flex-1 bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-auto text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap">${job.log || 'No log data'}</pre>
+                    </div>
+                </div>
+            `;
+            showModal(`Job #${job.id}: ${job.filename}`, content);
+        }
     }
 
     async function saveSettings(e) {
