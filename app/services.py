@@ -176,10 +176,16 @@ class PrinterManager:
             logger.info(f"Sending ZPL to printer at {self.printer_ip}:{self.printer_port}")
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(5)
-            # sock.connect((self.printer_ip, self.printer_port))
-            sock.sendall(zpl_content.encode('utf-8'))  # Prints the label
-            sock.close()
-            logger.info(f"ZPL sent successfully to {self.printer_ip}:{self.printer_port}")
+            try:
+                sock.connect((self.printer_ip, self.printer_port))
+                sock.sendall(zpl_content.encode('utf-8'))  # Prints the label
+                logger.info(f"ZPL sent successfully to {self.printer_ip}:{self.printer_port}")
+            finally:
+                try:
+                    sock.shutdown(socket.SHUT_RDWR)
+                except:
+                    pass
+                sock.close()
             
             self.update_job_status(job_id, "PRINTING", f"ZPL sent to {self.printer_ip}:{self.printer_port}")
             await asyncio.sleep(2)
@@ -287,7 +293,7 @@ class EmailPoller:
                                     db = SessionLocal()
                                     job = Job(
                                         filename=filename,
-                                        source="eBay Shipping Label (Email)",
+                                        source="Email (eBay Shipping Label)",
                                         status="READY"
                                     )
                                     db.add(job)
