@@ -91,9 +91,26 @@
                         <input type="email" name="email_user" value="{{ settings.email_user }}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">App Password</label>
-                        <input type="password" name="email_pass" placeholder="••••••••" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3">
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">🔐 Encrypted in database - only leave blank to keep current password</p>
+                        <div class="flex items-center justify-between gap-2 mb-1">
+                            <label class="block text-xs font-bold uppercase text-gray-500">App Password</label>
+                            {% if settings.email_pass %}
+                            <span class="inline-flex items-center gap-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded text-xs">
+                                🔒 Stored
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded text-xs">
+                                Not configured
+                            </span>
+                            {% endif %}
+                        </div>
+                        <input type="password" name="email_pass" placeholder="{% if settings.email_pass %}••••••••{% else %}Enter password{% endif %}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {% if settings.email_pass %}
+                            Leave blank to keep current encrypted password, or enter a new one to replace it
+                            {% else %}
+                            Enter your email app password. It will be encrypted and stored securely.
+                            {% endif %}
+                        </p>
                     </div>
 
                     <!-- Email Filter Settings Section -->
