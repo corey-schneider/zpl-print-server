@@ -101,6 +101,12 @@
                         <input type="text" name="printer_ip" value="{{ settings.printer_ip }}" placeholder="192.168.1.111" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 focus:ring-2 focus:ring-blue-500">
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The IP address of your Zebra printer on your network</p>
                     </div>
+                    <div id="printer-status-box" class="border border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                        <div class="flex items-center gap-2 mb-2">
+                            <p class="text-xs font-bold uppercase text-gray-500">Status</p>
+                        </div>
+                        <p id="printer-status-message" class="text-sm text-gray-700 dark:text-gray-300">Checking connection...</p>
+                    </div>
                 </div>
                 
                 <!-- Email Tab -->
@@ -291,7 +297,46 @@
 
     // --- Settings ---
     function toggleSettings() {
-        document.getElementById('settings-modal').classList.toggle('hidden');
+        const modal = document.getElementById('settings-modal');
+        modal.classList.toggle('hidden');
+        
+        // If opening (not hidden), fetch printer status
+        if (!modal.classList.contains('hidden')) {
+            checkPrinterStatus();
+        }
+    }
+
+    async function checkPrinterStatus() {
+        const statusBox = document.getElementById('printer-status-box');
+        const message = document.getElementById('printer-status-message');
+        
+        message.textContent = 'Checking connection...';
+        
+        try {
+            const response = await fetch('/api/printer-status');
+            const data = await response.json();
+            
+            // Remove all status classes
+            statusBox.className = 'border rounded-lg p-4';
+            
+            if (data.status === 'connected') {
+                statusBox.className = 'border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-lg p-4';
+                message.className = 'text-sm text-green-700 dark:text-green-300 font-medium';
+                message.textContent = data.message;
+            } else if (data.status === 'offline') {
+                statusBox.className = 'border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-lg p-4';
+                message.className = 'text-sm text-red-700 dark:text-red-300 font-medium';
+                message.textContent = data.message;
+            } else if (data.status === 'not_configured') {
+                statusBox.className = 'border border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4';
+                message.className = 'text-sm text-yellow-700 dark:text-yellow-300 font-medium';
+                message.textContent = data.message;
+            }
+        } catch (err) {
+            statusBox.className = 'border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-lg p-4';
+            message.className = 'text-sm text-red-700 dark:text-red-300';
+            message.textContent = `Error checking status: ${err.message}`;
+        }
     }
 
     function dismissFirstRun() {

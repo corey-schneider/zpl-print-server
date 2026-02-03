@@ -166,3 +166,32 @@ async def test_email():
         return JSONResponse(result if result else {"status": "success", "message": "Email poll completed"})
     except Exception as e:
         return JSONResponse({"status": "failed", "reason": str(e)}, status_code=500)
+
+@app.get("/api/printer-status")
+async def get_printer_status():
+    """Check the current printer connection status."""
+    db = SessionLocal()
+    settings = db.query(Settings).first()
+    db.close()
+    
+    if not settings or not settings.printer_ip:
+        return JSONResponse({
+            "status": "not_configured",
+            "message": "Printer IP not configured",
+            "ip": None
+        })
+    
+    mgr = PrinterManager(printer_ip=settings.printer_ip)
+    
+    if mgr.is_printer_online():
+        return JSONResponse({
+            "status": "connected",
+            "message": f"✅ Connected to {settings.printer_ip}:{mgr.printer_port}",
+            "ip": settings.printer_ip
+        })
+    else:
+        return JSONResponse({
+            "status": "offline",
+            "message": f"❌ Could not reach printer at {settings.printer_ip}:{mgr.printer_port}",
+            "ip": settings.printer_ip
+        })
