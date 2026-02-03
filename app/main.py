@@ -84,11 +84,11 @@ async def manual_upload(file: UploadFile = File(...), background_tasks: Backgrou
 async def update_settings(
     printer_ip: str = Form(...),
     email_user: str = Form(...),
-    email_pass: str = Form(...),
-    email_filter_from: str = Form(None),
-    email_filter_subject: str = Form(None),
-    email_filter_body: str = Form(None),
-    scan_interval: int = Form(None),
+    email_pass: str = Form(""),
+    email_filter_from: str = Form(""),
+    email_filter_subject: str = Form(""),
+    email_filter_body: str = Form(""),
+    scan_interval: int = Form(60),
     smart_plug_enabled: bool = Form(False),
     smart_plug_webhook: str = Form(""),
     smart_plug_off_webhook: str = Form("")
@@ -97,16 +97,14 @@ async def update_settings(
     s = db.query(Settings).first()
     s.printer_ip = printer_ip
     s.email_user = email_user
-    if email_pass.strip(): # Only update if provided
+    if email_pass.strip(): # Only update password if provided
         s.email_pass = email_pass
-    if email_filter_from: # Only update if provided
-        s.email_filter_from = email_filter_from
-    if email_filter_subject: # Only update if provided
-        s.email_filter_subject = email_filter_subject
-    if email_filter_body: # Only update if provided
-        s.email_filter_body = email_filter_body
-    if scan_interval: # Only update if provided
-        s.scan_interval = max(10, scan_interval)  # Enforce minimum 10 seconds
+    # Always update email filters (allows clearing filters or changing them)
+    s.email_filter_from = email_filter_from
+    s.email_filter_subject = email_filter_subject
+    s.email_filter_body = email_filter_body
+    if scan_interval and scan_interval >= 10: # Only update if provided and valid
+        s.scan_interval = scan_interval
     s.smart_plug_enabled = smart_plug_enabled
     s.smart_plug_webhook = smart_plug_webhook
     s.smart_plug_off_webhook = smart_plug_off_webhook

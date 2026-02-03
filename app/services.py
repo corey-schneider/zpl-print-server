@@ -228,13 +228,16 @@ class EmailPoller:
         
         try:
             # Connect to Yahoo IMAP
+            logger.info(f"Connecting to Yahoo IMAP for {settings.email_user}...")
             imap = imaplib.IMAP4_SSL("imap.mail.yahoo.com", 993)
             imap.login(settings.email_user, settings.email_pass)
+            logger.info(f"Successfully authenticated as {settings.email_user}")
             imap.select("INBOX")
             
             # Search for unseen emails
             status, messages = imap.search(None, "UNSEEN")
             email_ids = messages[0].split()
+            logger.info(f"Found {len(email_ids)} unseen emails")
             
             for email_id in email_ids[-10:]:  # Process last 10 unseen emails
                 status, msg_data = imap.fetch(email_id, "(RFC822)")
@@ -244,12 +247,14 @@ class EmailPoller:
                         
                         # SECURITY: Only accept from configured sender
                         from_addr = msg.get("From", "").lower()
+                        subject = msg.get("Subject", "").lower()
+                        logger.debug(f"Checking email - From: {from_addr}, Subject: {subject}")
+                        
                         if settings.email_filter_from.lower() not in from_addr:
                             logger.warning(f"Rejected email from {from_addr} (expected: {settings.email_filter_from})")
                             continue
                         
                         # SECURITY: Check subject contains configured term
-                        subject = msg.get("Subject", "").lower()
                         if settings.email_filter_subject.lower() not in subject:
                             logger.warning(f"Rejected email with subject '{subject}' (missing: '{settings.email_filter_subject}')")
                             continue
@@ -266,6 +271,8 @@ class EmailPoller:
                         if settings.email_filter_body.lower() not in body_text.lower():
                             logger.warning(f"Rejected email (missing '{settings.email_filter_body}' in body)")
                             continue
+                        
+                        logger.info(f"✅ Email passed all filters - creating print job")
                         
                         # All checks passed - extract FIRST PDF attachment only
                         pdf_found = False
