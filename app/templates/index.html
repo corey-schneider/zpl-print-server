@@ -78,17 +78,37 @@
     </div>
 
     <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center backdrop-blur-sm">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 w-full max-w-lg shadow-2xl transform transition-all overflow-y-auto max-h-[90vh]">
-            <h2 class="text-xl font-bold mb-6">Configuration</h2>
-            <form id="settings-form" onsubmit="saveSettings(event)">
-                <div class="space-y-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-2xl shadow-2xl transform transition-all overflow-hidden max-h-[90vh] flex flex-col">
+            <!-- Header -->
+            <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-xl font-bold">Configuration</h2>
+                <button type="button" onclick="toggleSettings()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            
+            <!-- Tabs -->
+            <div class="flex border-b border-gray-200 dark:border-gray-700 px-6">
+                <button onclick="switchTab('printer')" id="tab-printer" class="tab-btn px-4 py-3 font-medium text-sm border-b-2 border-blue-600 text-blue-600">🖨️ Printer</button>
+                <button onclick="switchTab('email')" id="tab-email" class="tab-btn px-4 py-3 font-medium text-sm text-gray-600 dark:text-gray-400">📧 Email</button>
+                <button onclick="switchTab('smartplug')" id="tab-smartplug" class="tab-btn px-4 py-3 font-medium text-sm text-gray-600 dark:text-gray-400">⚡ Smart Plug</button>
+            </div>
+            
+            <!-- Content -->
+            <form id="settings-form" onsubmit="saveSettings(event)" class="flex-1 overflow-y-auto">
+                <!-- Printer Tab -->
+                <div id="tab-content-printer" class="tab-content p-6 space-y-4">
                     <div>
-                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Printer IP</label>
-                        <input type="text" name="printer_ip" value="{{ settings.printer_ip }}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 focus:ring-2 focus:ring-blue-500">
+                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Printer IP Address</label>
+                        <input type="text" name="printer_ip" value="{{ settings.printer_ip }}" placeholder="192.168.1.111" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 focus:ring-2 focus:ring-blue-500">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">The IP address of your Zebra printer on your network</p>
                     </div>
+                </div>
+                
+                <!-- Email Tab -->
+                <div id="tab-content-email" class="tab-content p-6 space-y-4 hidden">
                     <div>
                         <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Yahoo Email User</label>
-                        <input type="email" name="email_user" value="{{ settings.email_user }}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3">
+                        <input type="email" name="email_user" value="{{ settings.email_user }}" placeholder="your.email@yahoo.com" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Your Yahoo Mail email address</p>
                     </div>
                     <div>
                         <div class="flex items-center justify-between gap-2 mb-1">
@@ -113,50 +133,74 @@
                         </p>
                     </div>
 
-                    <!-- Email Filter Settings Section -->
-                    <div class="border-t border-gray-300 dark:border-gray-600 pt-4 mt-4">
+                    <div class="border-t border-gray-300 dark:border-gray-600 pt-4">
                         <p class="text-xs font-bold uppercase text-gray-500 mb-3">Email Security Filters</p>
+                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-4">All three filters must match for an email to be processed</p>
+                        
                         <div>
                             <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Allowed Sender Email</label>
-                            <input type="text" name="email_filter_from" value="{{ settings.email_filter_from }}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Only emails from this address will be processed</p>
+                            <input type="text" name="email_filter_from" value="{{ settings.email_filter_from }}" placeholder="shipping@ebay.com" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Only emails from this address will be processed (partial match)</p>
                         </div>
                         <div class="mt-3">
                             <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Subject Must Contain</label>
-                            <input type="text" name="email_filter_subject" value="{{ settings.email_filter_subject }}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Subject line must include this phrase</p>
+                            <input type="text" name="email_filter_subject" value="{{ settings.email_filter_subject }}" placeholder="shipping label" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Subject line must include this phrase (case-insensitive)</p>
                         </div>
                         <div class="mt-3">
                             <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Body Must Contain</label>
-                            <input type="text" name="email_filter_body" value="{{ settings.email_filter_body }}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Email body must include this phrase</p>
+                            <input type="text" name="email_filter_body" value="{{ settings.email_filter_body }}" placeholder="label ready" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Email body must include this phrase (case-insensitive)</p>
                         </div>
                         <div class="mt-3">
-                            <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Scan Interval (seconds)</label>
+                            <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Check Frequency (seconds)</label>
                             <input type="number" name="scan_interval" value="{{ settings.scan_interval }}" min="10" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
                             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">How often to check for new emails (minimum 10 seconds)</p>
                         </div>
                     </div>
 
-                    <div class="flex items-center gap-2">
-                        <input type="checkbox" name="smart_plug_enabled" id="spe" {% if settings.smart_plug_enabled %}checked{% endif %} class="w-5 h-5 rounded text-blue-600">
-                        <label for="spe">Enable Smart Plug</label>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Plug ON Webhook</label>
-                        <input type="text" name="smart_plug_webhook" value="{{ settings.smart_plug_webhook }}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-xs">
-                        <p class="text-xs text-gray-500 mt-1">Use an IFTTT or Alexa webhook URL</p>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Plug OFF Webhook</label>
-                        <input type="text" name="smart_plug_off_webhook" value="{{ settings.smart_plug_off_webhook }}" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-xs">
+                    <div class="border-t border-gray-300 dark:border-gray-600 pt-4">
+                        <p class="text-xs font-bold uppercase text-gray-500 mb-3">Test Configuration</p>
+                        <button type="button" id="test-email-btn" onclick="testEmailConfig()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                            🔍 Test Email Connection
+                        </button>
+                        <div id="test-email-result" class="mt-3 hidden p-3 rounded-lg text-xs"></div>
                     </div>
                 </div>
-                <div class="mt-8 flex justify-end gap-3">
-                    <button type="button" onclick="toggleSettings()" class="px-4 py-2 text-gray-500 hover:text-gray-700">Cancel</button>
-                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium">Save Changes</button>
+                
+                <!-- Smart Plug Tab -->
+                <div id="tab-content-smartplug" class="tab-content p-6 space-y-4 hidden">
+                    <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">
+                        <p class="text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
+                            <strong>💡 Power Savings:</strong> If you live in a region with expensive electricity and don't need the printer running 24/7, this feature can automatically turn your printer on when jobs arrive and off during idle periods. Great for occasional batch printing!
+                        </p>
+                    </div>
+                    
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" name="smart_plug_enabled" id="spe" {% if settings.smart_plug_enabled %}checked{% endif %} class="w-5 h-5 rounded text-blue-600">
+                        <label for="spe" class="text-sm font-medium">Enable Smart Plug Integration</label>
+                    </div>
+                    
+                    <div id="smart-plug-fields">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Plug ON Webhook URL</label>
+                            <input type="text" name="smart_plug_webhook" value="{{ settings.smart_plug_webhook }}" placeholder="https://hooks.ifttt.com/..." class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-xs">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">IFTTT or Alexa webhook to turn printer ON</p>
+                        </div>
+                        <div class="mt-3">
+                            <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Plug OFF Webhook URL</label>
+                            <input type="text" name="smart_plug_off_webhook" value="{{ settings.smart_plug_off_webhook }}" placeholder="https://hooks.ifttt.com/..." class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-xs">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">IFTTT or Alexa webhook to turn printer OFF</p>
+                        </div>
+                    </div>
                 </div>
             </form>
+            
+            <!-- Footer -->
+            <div class="mt-auto p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+                <button type="button" onclick="toggleSettings()" class="px-4 py-2 text-gray-500 hover:text-gray-700">Cancel</button>
+                <button type="submit" form="settings-form" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium">Save Changes</button>
+            </div>
         </div>
     </div>
 
@@ -252,9 +296,9 @@
 
     function dismissFirstRun() {
         // Hide the first-run banner
-        const banner = document.querySelector('.bg-yellow-50, .bg-yellow-900\\/30');
+        const banner = document.querySelector('.bg-yellow-50, .bg-yellow-900\/30');
         if (banner) {
-            banner.parentElement.removeChild(banner);
+            banner.style.display = 'none';
         }
     }
 
@@ -273,11 +317,63 @@
         }
     }
 
-    // --- Modal System (DRY - Single reusable modal) ---
-    function showModal(title, content) {
-        document.getElementById('modal-title').textContent = title;
-        document.getElementById('modal-content').innerHTML = content;
-        document.getElementById('generic-modal').classList.remove('hidden');
+    // --- Tabbed Settings ---
+    function switchTab(tab) {
+        // Hide all tab contents
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        
+        // Remove all tab button styles
+        document.querySelectorAll('.tab-btn').forEach(el => {
+            el.classList.remove('border-b-2', 'border-blue-600', 'text-blue-600');
+            el.classList.add('text-gray-600', 'dark:text-gray-400');
+        });
+        
+        // Show selected tab
+        document.getElementById('tab-content-' + tab).classList.remove('hidden');
+        
+        // Style selected tab button
+        const btn = document.getElementById('tab-' + tab);
+        btn.classList.remove('text-gray-600', 'dark:text-gray-400');
+        btn.classList.add('border-b-2', 'border-blue-600', 'text-blue-600');
+    }
+    // Default to printer tab
+    switchTab('printer');
+
+    async function testEmailConfig() {
+        const btn = document.getElementById('test-email-btn');
+        const resultDiv = document.getElementById('test-email-result');
+        
+        btn.disabled = true;
+        btn.textContent = '⏳ Testing...';
+        resultDiv.classList.add('hidden');
+        
+        try {
+            const response = await fetch('/api/test-email', { method: 'POST' });
+            const data = await response.json();
+            
+            resultDiv.classList.remove('hidden');
+            
+            if (data.status === 'success') {
+                resultDiv.className = 'mt-3 p-3 rounded-lg text-xs bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-900 dark:text-green-200';
+                resultDiv.innerHTML = '<strong>✅ Success!</strong> Email is properly configured and connected.';
+            } else if (data.reason && data.reason.includes('AUTHENTICATE')) {
+                resultDiv.className = 'mt-3 p-3 rounded-lg text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200';
+                resultDiv.innerHTML = '<strong>❌ Auth Failed</strong> Wrong email address or app password. Check your Yahoo Mail credentials.';
+            } else if (data.reason && data.reason.includes('Broken pipe')) {
+                resultDiv.className = 'mt-3 p-3 rounded-lg text-xs bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 text-orange-900 dark:text-orange-200';
+                resultDiv.innerHTML = '<strong>⚠️ Connection Error</strong> Could not connect to Yahoo IMAP. Check your internet connection.';
+            } else {
+                resultDiv.className = 'mt-3 p-3 rounded-lg text-xs bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-900 dark:text-yellow-200';
+                resultDiv.innerHTML = `<strong>⚠️ Test Result:</strong> ${data.reason || 'Unknown status'}`;
+            }
+        } catch (err) {
+            resultDiv.classList.remove('hidden');
+            resultDiv.className = 'mt-3 p-3 rounded-lg text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200';
+            resultDiv.innerHTML = `<strong>❌ Network Error:</strong> ${err.message}`;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '🔍 Test Email Connection';
+        }
     }
 
     function closeModal(event) {

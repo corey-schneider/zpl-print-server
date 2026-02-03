@@ -116,7 +116,7 @@ async def update_settings(
 async def get_jobs():
     db = SessionLocal()
     jobs = db.query(Job).order_by(Job.created_at.desc()).limit(10).all()
-    data = [{"id": j.id, "filename": j.filename, "status": j.status, "log": j.log, "time": j.created_at.isoformat()} for j in jobs]
+    data = [{"id": j.id, "filename": j.filename, "status": j.status, "log": j.log, "source": j.source, "time": j.created_at.isoformat()} for j in jobs]
     db.close()
     return data
 
