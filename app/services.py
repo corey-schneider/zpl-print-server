@@ -128,6 +128,7 @@ class PrinterManager:
         from app.database import SessionLocal, Settings, Job
         db = SessionLocal()
         settings = db.query(Settings).first()
+        job = db.query(Job).filter(Job.id == job_id).first()
         db.close()
         
         if settings and settings.printer_ip:
@@ -138,16 +139,21 @@ class PrinterManager:
             return
 
         self.update_job_status(job_id, "SENDING", "Connecting to printer...")
-        pdf_path = f"/app/data/{job_id}.pdf"
         
         try:
-            # Try PDF passthrough first
-            success = await self._try_pdf_passthrough(job_id, pdf_path)
-            
-            if not success:
-                # Fall back to ZPL if PDF doesn't work
-                logger.info(f"PDF passthrough failed for job {job_id}, falling back to ZPL")
-                await self._try_zpl_fallback(job_id, pdf_path)
+            # Check if this is a direct ZPL upload (already in correct format)
+            if job and job.source == "ZPL Direct Upload":
+                # Send ZPL directly without any processing
+                await self._send_zpl_direct(job_id)
+            else:
+                # Standard PDF workflow: try PDF passthrough, fall back to ZPL
+                pdf_path = f"/app/data/{job_id}.pdf"
+                success = await self._try_pdf_passthrough(job_id, pdf_path)
+                
+                if not success:
+                    # Fall back to ZPL if PDF doesn't work
+                    logger.info(f"PDF passthrough failed for job {job_id}, falling back to ZPL")
+                    await self._try_zpl_fallback(job_id, pdf_path)
                 
         except Exception as e:
             self.update_job_status(job_id, "FAILED", f"Error: {str(e)}")
@@ -156,6 +162,41 @@ class PrinterManager:
         """Skip PDF passthrough - Zebra printers need ZPL, not raw PDF."""
         logger.info(f"Skipping PDF passthrough (Zebra printers require ZPL format)")
         return False
+
+    async def _send_zpl_direct(self, job_id: int):
+        """Send ZPL file directly to printer without any conversion (lossless)."""
+        try:
+            zpl_path = f"/app/data/{job_id}.zpl"
+            
+            if not os.path.exists(zpl_path):
+                self.update_job_status(job_id, "FAILED", "ZPL file not found")
+                return
+            
+            # Read ZPL file as binary (preserve exact format)
+            with open(zpl_path, "rb") as f:
+                zpl_content = f.read()
+            
+            # Send directly to printer
+            logger.info(f"Sending ZPL directly to printer at {self.printer_ip}:{self.printer_port}")
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)
+            try:
+                sock.connect((self.printer_ip, self.printer_port))
+                sock.sendall(zpl_content)  # Send as binary (lossless)
+                logger.info(f"ZPL sent successfully to {self.printer_ip}:{self.printer_port}")
+            finally:
+                try:
+                    sock.shutdown(socket.SHUT_RDWR)
+                except:
+                    pass
+                sock.close()
+            
+            self.update_job_status(job_id, "PRINTING", f"ZPL sent to {self.printer_ip}:{self.printer_port}")
+            await asyncio.sleep(2)
+            self.update_job_status(job_id, "COMPLETED", "Print job completed (Direct ZPL).")
+        except Exception as e:
+            logger.error(f"Direct ZPL send error: {str(e)}")
+            self.update_job_status(job_id, "FAILED", f"Direct ZPL send error: {str(e)}")
 
     async def _try_zpl_fallback(self, job_id: int, pdf_path: str):
         """Fall back to ZPL conversion and printing."""

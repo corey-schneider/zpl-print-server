@@ -47,11 +47,19 @@
         </button>
     </div>
 
-    <div id="drop-zone" class="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-10 text-center mb-8 transition-colors cursor-pointer bg-white dark:bg-gray-800 shadow-sm">
+    <div id="drop-zone" class="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-10 text-center mb-6 transition-colors cursor-pointer bg-white dark:bg-gray-800 shadow-sm">
         <input type="file" id="file-input" class="hidden" accept=".pdf">
         <div class="pointer-events-none">
             <p class="text-xl font-medium mb-2">Drop PDF Label Here</p>
             <p class="text-sm text-gray-500">or click to browse</p>
+        </div>
+    </div>
+
+    <div id="drop-zone-zpl" class="border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-2xl p-10 text-center mb-8 transition-colors cursor-pointer bg-blue-50 dark:bg-blue-900/20 shadow-sm">
+        <input type="file" id="file-input-zpl" class="hidden" accept=".zpl">
+        <div class="pointer-events-none">
+            <p class="text-xl font-medium mb-2">Drop ZPL File Here</p>
+            <p class="text-sm text-gray-500">or click to browse - Direct to printer (lossless)</p>
         </div>
     </div>
 
@@ -249,24 +257,38 @@
     // --- Drag & Drop ---
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
+    const dropZoneZpl = document.getElementById('drop-zone-zpl');
+    const fileInputZpl = document.getElementById('file-input-zpl');
 
+    // PDF upload handlers
     dropZone.addEventListener('click', () => fileInput.click());
     dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-active'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-active'));
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropZone.classList.remove('drag-active');
-        if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
+        if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0], '/upload');
     });
-    fileInput.addEventListener('change', () => { if (fileInput.files.length) uploadFile(fileInput.files[0]); });
+    fileInput.addEventListener('change', () => { if (fileInput.files.length) uploadFile(fileInput.files[0], '/upload'); });
 
-    async function uploadFile(file) {
+    // ZPL upload handlers
+    dropZoneZpl.addEventListener('click', () => fileInputZpl.click());
+    dropZoneZpl.addEventListener('dragover', (e) => { e.preventDefault(); dropZoneZpl.classList.add('drag-active'); });
+    dropZoneZpl.addEventListener('dragleave', () => dropZoneZpl.classList.remove('drag-active'));
+    dropZoneZpl.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZoneZpl.classList.remove('drag-active');
+        if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0], '/upload-zpl');
+    });
+    fileInputZpl.addEventListener('change', () => { if (fileInputZpl.files.length) uploadFile(fileInputZpl.files[0], '/upload-zpl'); });
+
+    async function uploadFile(file, endpoint) {
         const formData = new FormData();
         formData.append('file', file);
         
         // Optimistic UI update could go here
         
-        await fetch('/upload', { method: 'POST', body: formData });
+        await fetch(endpoint, { method: 'POST', body: formData });
         pollJobs();
     }
 
@@ -304,7 +326,7 @@
                     </button>
                 </td>
                 <td class="px-6 py-4 text-right space-x-2">
-                    <a href="javascript:openPdfPreview('/download/pdf/${job.id}')" title="View PDF" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded cursor-pointer">PDF 📄</a>
+                    ${job.source === 'ZPL Direct Upload' ? '' : `<a href="javascript:openPdfPreview('/download/pdf/${job.id}')" title="View PDF" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded cursor-pointer">PDF 📄</a>`}
                     <a href="javascript:openZplPreview(${job.id})" title="Preview ZPL" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded cursor-pointer">ZPL 🖼️</a>
                     <a href="/download/zpl/${job.id}" target="_blank" title="Download ZPL" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">⬇️</a>
                 </td>

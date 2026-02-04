@@ -80,6 +80,41 @@ async def manual_upload(file: UploadFile = File(...), background_tasks: Backgrou
 
     return JSONResponse({"status": "accepted", "job_id": job_id})
 
+@app.post("/upload-zpl")
+async def upload_zpl(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
+    """Upload ZPL file directly - send losslessly to printer without conversion."""
+    content = await file.read()
+    db = SessionLocal()
+    
+    job = Job(filename=file.filename, source="ZPL Direct Upload", status="READY")
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    job_id = job.id
+
+    try:
+        # Store ZPL directly as-is (lossless)
+        zpl_path = os.path.join(DATA_DIR, f"{job_id}.zpl")
+        with open(zpl_path, "wb") as f:
+            f.write(content)
+
+        job.log = "Ready - ZPL direct upload (no conversion)"
+        db.commit()
+
+        # Start printing in background
+        if background_tasks:
+            mgr = PrinterManager()
+            background_tasks.add_task(mgr.run_job, job_id)
+            
+    except Exception as e:
+        job.status = "FAILED"
+        job.log = f"Error: {str(e)}"
+        db.commit()
+    finally:
+        db.close()
+
+    return JSONResponse({"status": "accepted", "job_id": job_id})
+
 @app.post("/settings")
 async def update_settings(
     printer_ip: str = Form(...),
