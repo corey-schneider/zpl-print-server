@@ -11,6 +11,25 @@ from app.encryption import IS_FIRST_RUN
 
 DATA_DIR = "/app/data"
 
+# Security constants
+MAX_FILE_SIZE_MB = 2
+MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+ALLOWED_EXTENSIONS = {".pdf", ".zpl", ".txt"}
+
+# Helper functions
+def validate_job_id(job_id: int) -> int:
+    """Validate and sanitize job_id to prevent path traversal."""
+    if not isinstance(job_id, int) or job_id < 1:
+        raise HTTPException(status_code=400, detail="Invalid job ID")
+    return job_id
+
+def validate_file_extension(filename: str) -> str:
+    """Validate file has allowed extension."""
+    ext = os.path.splitext(filename.lower())[1]
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"File type not allowed. Allowed: {', '.join(ALLOWED_EXTENSIONS)}")
+    return filename
+
 email_poller = EmailPoller()
 printer_manager = PrinterManager()
 
@@ -30,10 +49,9 @@ templates = Jinja2Templates(directory="app/templates")
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    db = SessionLocal()
-    settings = db.query(Settings).first()
-    jobs = db.query(Job).order_by(Job.created_at.desc()).limit(20).all()
-    db.close()
+    with SessionLocal() as db:
+        settings = db.query(Settings).first()
+        jobs = db.query(Job).order_by(Job.created_at.desc()).limit(20).all()
     return templates.TemplateResponse("index.html", {
         "request": request, 
         "jobs": jobs, 
@@ -67,21 +85,27 @@ def _detect_file_type(filename: str, content: bytes) -> str:
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
     """Universal upload endpoint - auto-detects PDF or ZPL and routes accordingly."""
-    content = await file.read()
+    # Validate file extension
+    validate_file_extension(file.filename)
+    
+    # Read file with size limit
+    content = await file.read(MAX_FILE_SIZE_BYTES + 1)
+    if len(content) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum size: {MAX_FILE_SIZE_MB}MB")
+    
     file_type = _detect_file_type(file.filename, content)
-    db = SessionLocal()
-    
-    # Determine source based on file type
-    if file_type == 'zpl':
-        source = "ZPL Direct Upload"
-    else:
-        source = "Manual UI Upload"
-    
-    job = Job(filename=file.filename, source=source, status="READY")
-    db.add(job)
-    db.commit()
-    db.refresh(job)
-    job_id = job.id
+    with SessionLocal() as db:
+        # Determine source based on file type
+        if file_type == 'zpl':
+            source = "ZPL Direct Upload"
+        else:
+            source = "Manual UI Upload"
+        
+        job = Job(filename=file.filename, source=source, status="READY")
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+        job_id = job.id
 
     try:
         if file_type == 'zpl':
@@ -162,15 +186,15 @@ async def update_settings(
 
 @app.get("/api/jobs")
 async def get_jobs():
-    db = SessionLocal()
-    jobs = db.query(Job).order_by(Job.created_at.desc()).limit(10).all()
-    data = [{"id": j.id, "filename": j.filename, "status": j.status, "log": j.log, "source": j.source, "created_at": j.created_at.isoformat()} for j in jobs]
-    db.close()
+    with SessionLocal() as db:
+        jobs = db.query(Job).order_by(Job.created_at.desc()).limit(10).all()
+        data = [{"id": j.id, "filename": j.filename, "status": j.status, "log": j.log, "source": j.source, "created_at": j.created_at.isoformat()} for j in jobs]
     return data
 
 @app.get("/preview/zpl/{job_id}")
 async def preview_job(job_id: int):
     """Preview the rendered ZPL as a PNG image."""
+    validate_job_id(job_id)
     file_path = os.path.join(DATA_DIR, f"{job_id}_preview.png")
     if os.path.exists(file_path):
         return FileResponse(file_path, media_type="image/png")
@@ -178,6 +202,7 @@ async def preview_job(job_id: int):
 
 @app.get("/preview/pdf/{job_id}")
 async def preview_pdf(job_id: int):
+    validate_job_id(job_id)
     # Search for the file based on ID
     file_path = os.path.join(DATA_DIR, f"{job_id}.pdf")
     if os.path.exists(file_path):
@@ -186,6 +211,7 @@ async def preview_pdf(job_id: int):
 
 @app.get("/download/pdf/{job_id}")
 async def download_pdf(job_id: int):
+    validate_job_id(job_id)
     file_path = f"/app/data/{job_id}.pdf"
     if os.path.exists(file_path):
         return FileResponse(
@@ -197,6 +223,7 @@ async def download_pdf(job_id: int):
 
 @app.get("/download/zpl/{job_id}")
 async def download_zpl(job_id: int):
+    validate_job_id(job_id)
     file_path = os.path.join(DATA_DIR, f"{job_id}.zpl")
     if os.path.exists(file_path):
         return FileResponse(
@@ -218,9 +245,8 @@ async def test_email():
 @app.get("/api/printer-status")
 async def get_printer_status():
     """Check the current printer connection status."""
-    db = SessionLocal()
-    settings = db.query(Settings).first()
-    db.close()
+    with SessionLocal() as db:
+        settings = db.query(Settings).first()
     
     if not settings or not settings.printer_ip:
         return JSONResponse({
@@ -243,3 +269,13 @@ async def get_printer_status():
             "message": f"❌ Could not reach printer at {settings.printer_ip}:{mgr.printer_port}",
             "ip": settings.printer_ip
         })
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring and load balancers."""
+    from datetime import datetime
+    return {
+        "status": "healthy",
+        "service": "zpl-print-server",
+        "timestamp": datetime.now().isoformat()
+    }

@@ -6,7 +6,12 @@ from app.encryption import encrypt_value, decrypt_value
 
 DATABASE_URL = "sqlite:///./data/printer.db"
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(
+    DATABASE_URL, 
+    connect_args={"check_same_thread": False},
+    pool_pre_ping=True,  # Verify connections before using them
+    pool_recycle=3600  # Recycle connections after 1 hour
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

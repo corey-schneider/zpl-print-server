@@ -7,11 +7,9 @@ import logging
 import numpy as np
 import imaplib
 import email
-from email.header import decode_header
-from datetime import datetime, timedelta
+from datetime import datetime
 import fitz  # PyMuPDF
-from PIL import Image, ImageDraw, ImageOps, ImageFilter
-from pyzbar.pyzbar import decode, ZBarSymbol
+from PIL import Image, ImageOps, ImageFilter
 
 # Setup logging for a production environment
 logging.basicConfig(
@@ -103,13 +101,12 @@ class PrinterManager:
 
     def update_job_status(self, job_id, status, log=None):
         from app.database import SessionLocal, Job
-        db = SessionLocal()
-        job = db.query(Job).filter(Job.id == job_id).first()
-        if job:
-            job.status = status
-            if log: job.log = log
-            db.commit()
-        db.close()
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == job_id).first()
+            if job:
+                job.status = status
+                if log: job.log = log
+                db.commit()
 
     def is_printer_online(self) -> bool:
         """Checks if printer is reachable via socket connection."""
@@ -126,10 +123,9 @@ class PrinterManager:
     async def run_job(self, job_id: int):
         # Get printer IP from settings
         from app.database import SessionLocal, Settings, Job
-        db = SessionLocal()
-        settings = db.query(Settings).first()
-        job = db.query(Job).filter(Job.id == job_id).first()
-        db.close()
+        with SessionLocal() as db:
+            settings = db.query(Settings).first()
+            job = db.query(Job).filter(Job.id == job_id).first()
         
         if settings and settings.printer_ip:
             self.printer_ip = settings.printer_ip
@@ -168,9 +164,8 @@ class PrinterManager:
                 # Check every 10 seconds for queued jobs
                 await asyncio.sleep(10)
                 
-                db = SessionLocal()
-                queued_jobs = db.query(Job).filter(Job.status == "QUEUED").order_by(Job.created_at).all()
-                db.close()
+                with SessionLocal() as db:
+                    queued_jobs = db.query(Job).filter(Job.status == "QUEUED").order_by(Job.created_at).all()
                 
                 if not queued_jobs:
                     continue  # No queued jobs, keep polling
@@ -289,10 +284,9 @@ class EmailPoller:
                 logger.error(f"Email Poller Error: {e}")
             # Read scan_interval from settings each loop
             from app.database import SessionLocal, Settings
-            db = SessionLocal()
-            settings = db.query(Settings).first()
-            db.close()
-            interval = settings.scan_interval if settings else 60
+            with SessionLocal() as db:
+                settings = db.query(Settings).first()
+                interval = settings.scan_interval if settings else 60
             await asyncio.sleep(interval)
 
     def stop(self):
@@ -304,9 +298,8 @@ class EmailPoller:
         """Poll Yahoo Mail for eBay shipping label PDFs."""
         from app.database import SessionLocal, Settings, Job
         
-        db = SessionLocal()
-        settings = db.query(Settings).first()
-        db.close()
+        with SessionLocal() as db:
+            settings = db.query(Settings).first()
         
         # Check if polling is explicitly enabled
         if not settings or not settings.email_polling_enabled:
@@ -387,17 +380,16 @@ class EmailPoller:
                                         pdf_found = True
                                         
                                         # Create print job
-                                        db = SessionLocal()
-                                        job = Job(
-                                            filename=filename,
-                                            source="Email (eBay Shipping Label)",
-                                            status="READY"
-                                        )
-                                        db.add(job)
-                                        db.commit()
-                                        db.refresh(job)
-                                        job_id = job.id
-                                        db.close()
+                                        with SessionLocal() as db:
+                                            job = Job(
+                                                filename=filename,
+                                                source="Email (eBay Shipping Label)",
+                                                status="READY"
+                                            )
+                                            db.add(job)
+                                            db.commit()
+                                            db.refresh(job)
+                                            job_id = job.id
                                         
                                         # Save PDF
                                         pdf_path = f"/app/data/{job_id}.pdf"
