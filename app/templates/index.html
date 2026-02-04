@@ -249,6 +249,18 @@
         </div>
     </div>
 
+    <!-- Theme Switcher -->
+    <div id="theme-switcher" class="fixed bottom-6 left-6 z-40">
+        <button id="theme-toggle" onclick="toggleThemeMenu()" class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-2 text-xl hover:shadow-xl transition">
+            <span id="theme-icon">🖥️</span>
+        </button>
+        <div id="theme-menu" class="hidden absolute bottom-12 left-0 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-1 flex flex-col gap-1">
+            <button onclick="setTheme('light')" class="px-3 py-2 rounded text-sm transition hover:bg-gray-100 dark:hover:bg-gray-700 text-left flex items-center gap-2">☀️ <span>Light</span></button>
+            <button onclick="setTheme('system')" class="px-3 py-2 rounded text-sm transition hover:bg-gray-100 dark:hover:bg-gray-700 text-left flex items-center gap-2">🖥️ <span>System</span></button>
+            <button onclick="setTheme('dark')" class="px-3 py-2 rounded text-sm transition hover:bg-gray-100 dark:hover:bg-gray-700 text-left flex items-center gap-2">🌙 <span>Dark</span></button>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -317,9 +329,67 @@
         if (smartPlugToggle) smartPlugToggle.addEventListener('change', updateSmartPlugFieldsState);
     });
     
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-        document.documentElement.classList.remove('dark');
+    // --- Theme Switching ---
+    function getSystemPreference() {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
+
+    function applyTheme(theme) {
+        const html = document.documentElement;
+        if (theme === 'dark' || (theme === 'system' && getSystemPreference() === 'dark')) {
+            html.classList.add('dark');
+        } else {
+            html.classList.remove('dark');
+        }
+    }
+
+    function getThemeIcon(theme) {
+        const icons = { light: '☀️', system: '🖥️', dark: '🌙' };
+        return icons[theme] || '🖥️';
+    }
+
+    function updateThemeIcon(theme) {
+        document.getElementById('theme-icon').textContent = getThemeIcon(theme);
+    }
+
+    function toggleThemeMenu() {
+        const menu = document.getElementById('theme-menu');
+        menu.classList.toggle('hidden');
+        if (!menu.classList.contains('hidden')) {
+            // Close menu when clicking outside
+            document.addEventListener('click', closeThemeMenuOnClickOutside);
+        }
+    }
+
+    function closeThemeMenuOnClickOutside(e) {
+        const switcher = document.getElementById('theme-switcher');
+        if (!switcher.contains(e.target)) {
+            document.getElementById('theme-menu').classList.add('hidden');
+            document.removeEventListener('click', closeThemeMenuOnClickOutside);
+        }
+    }
+
+    function setTheme(theme) {
+        localStorage.setItem('theme-preference', theme);
+        applyTheme(theme);
+        updateThemeIcon(theme);
+        document.getElementById('theme-menu').classList.add('hidden');
+    }
+
+    function initTheme() {
+        const savedTheme = localStorage.getItem('theme-preference') || 'system';
+        applyTheme(savedTheme);
+        updateThemeIcon(savedTheme);
+    }
+
+    // Initialize theme on page load and listen for system preference changes
+    document.addEventListener('DOMContentLoaded', initTheme);
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        const savedTheme = localStorage.getItem('theme-preference') || 'system';
+        if (savedTheme === 'system') {
+            applyTheme('system');
+        }
+    });
 
     // --- Drag & Drop ---
     const dropZone = document.getElementById('drop-zone');
