@@ -6,14 +6,34 @@ import os
 from cryptography.fernet import Fernet
 
 # Generate or load encryption key from environment
-# If not set, generate a default (for development only - should be set in production)
 ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
 
 if not ENCRYPTION_KEY:
-    # Generate a new key for development
-    ENCRYPTION_KEY = Fernet.generate_key().decode()
-    print(f"⚠️  ENCRYPTION_KEY not set. Generated: {ENCRYPTION_KEY}")
-    print("⚠️  Set the ENCRYPTION_KEY environment variable in production!")
+    # Try to load from .env file
+    env_file = "/app/.env"
+    if os.path.exists(env_file):
+        with open(env_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("ENCRYPTION_KEY="):
+                    ENCRYPTION_KEY = line.split("=", 1)[1]
+                    os.environ["ENCRYPTION_KEY"] = ENCRYPTION_KEY
+                    break
+    
+    # If still not found, generate and save it
+    if not ENCRYPTION_KEY:
+        ENCRYPTION_KEY = Fernet.generate_key().decode()
+        os.environ["ENCRYPTION_KEY"] = ENCRYPTION_KEY
+        
+        # Persist the key to .env file
+        try:
+            with open(env_file, "a") as f:
+                f.write(f"ENCRYPTION_KEY={ENCRYPTION_KEY}\n")
+            print(f"✅ Generated and saved ENCRYPTION_KEY to .env")
+        except Exception as e:
+            print(f"⚠️  Could not save ENCRYPTION_KEY to .env: {e}")
+    else:
+        print(f"✅ Loaded ENCRYPTION_KEY from .env")
 
 cipher = Fernet(ENCRYPTION_KEY.encode() if isinstance(ENCRYPTION_KEY, str) else ENCRYPTION_KEY)
 
@@ -35,6 +55,6 @@ def decrypt_value(value: str) -> str:
     try:
         return cipher.decrypt(value.encode()).decode()
     except Exception as e:
-        # If decryption fails, return the original value
-        # (useful for migration from unencrypted to encrypted)
-        return value
+        # If decryption fails, return empty string
+        # This prevents showing encrypted gibberish in forms
+        return ""

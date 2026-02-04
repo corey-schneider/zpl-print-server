@@ -97,8 +97,8 @@ async def update_settings(
     s = db.query(Settings).first()
     s.printer_ip = printer_ip
     s.email_user = email_user
-    if email_pass.strip(): # Only update password if provided
-        s.email_pass = email_pass
+    # Always update email password (allows clearing by submitting empty value)
+    s.email_pass = email_pass.strip() if email_pass else ""
     # Always update email filters (allows clearing filters or changing them)
     s.email_filter_from = email_filter_from
     s.email_filter_subject = email_filter_subject

@@ -8,6 +8,7 @@ import numpy as np
 import imaplib
 import email
 from email.header import decode_header
+from datetime import datetime, timedelta
 import fitz  # PyMuPDF
 from PIL import Image, ImageDraw, ImageOps, ImageFilter
 from pyzbar.pyzbar import decode, ZBarSymbol
@@ -230,20 +231,21 @@ class EmailPoller:
         db.close()
         
         if not settings or not settings.email_user or not settings.email_pass:
+            logger.debug("Email poller skipped: credentials not configured")
             return {"status": "failed", "reason": "Email credentials not configured"}  # No email config
         
         try:
             # Connect to Yahoo IMAP
-            logger.info(f"Connecting to Yahoo IMAP for {settings.email_user}...")
+            logger.debug(f"[POLL] Connecting to Yahoo IMAP for {settings.email_user}...")
             imap = imaplib.IMAP4_SSL("imap.mail.yahoo.com", 993)
             imap.login(settings.email_user, settings.email_pass)
-            logger.info(f"Successfully authenticated as {settings.email_user}")
+            logger.debug(f"[POLL] Authenticated as {settings.email_user}")
             imap.select("INBOX")
             
-            # Search for unseen emails
+            # Search for unseen emails (we mark as read after processing)
             status, messages = imap.search(None, "UNSEEN")
             email_ids = messages[0].split()
-            logger.info(f"Found {len(email_ids)} unseen emails")
+            logger.info(f"[POLL] Found {len(email_ids)} unseen emails")
             
             for email_id in email_ids[-10:]:  # Process last 10 unseen emails
                 status, msg_data = imap.fetch(email_id, "(RFC822)")
@@ -269,13 +271,28 @@ class EmailPoller:
                         body_text = ""
                         if msg.is_multipart():
                             for part in msg.walk():
-                                if part.get_content_type() == "text/plain":
-                                    body_text += part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                                content_type = part.get_content_type()
+                                if content_type == "text/plain":
+                                    try:
+                                        body_text += part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                                    except:
+                                        pass
+                                elif content_type == "text/html":
+                                    # Also extract from HTML as fallback
+                                    try:
+                                        body_text += part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                                    except:
+                                        pass
                         else:
-                            body_text = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
+                            try:
+                                body_text = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
+                            except:
+                                body_text = msg.get_payload()
+                        
+                        logger.debug(f"Extracted body (first 200 chars): {body_text[:200]}")
                         
                         if settings.email_filter_body.lower() not in body_text.lower():
-                            logger.warning(f"Rejected email (missing '{settings.email_filter_body}' in body)")
+                            logger.warning(f"Rejected email (missing '{settings.email_filter_body}' in body). Full body preview:\n{body_text[:300]}")
                             continue
                         
                         logger.info(f"✅ Email passed all filters - creating print job")
@@ -315,6 +332,9 @@ class EmailPoller:
                                         f.write(zpl_content)
                                     
                                     logger.info(f"eBay label job created: {job_id} ({filename})")
+                                    
+                                    # Mark email as read so we don't process it again
+                                    imap.store(email_id, '+FLAGS', '\\Seen')
                                     
                                     # Start printing
                                     mgr = PrinterManager()
