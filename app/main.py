@@ -12,11 +12,13 @@ from app.encryption import IS_FIRST_RUN
 DATA_DIR = "/app/data"
 
 email_poller = EmailPoller()
+printer_manager = PrinterManager()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     asyncio.create_task(email_poller.start())
+    asyncio.create_task(printer_manager.process_queued_jobs())
     yield
     email_poller.stop()
 

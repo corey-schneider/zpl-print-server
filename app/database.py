@@ -48,7 +48,7 @@ class Job(Base):
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String)
     source = Column(String) # "EMAIL" or "WEB"
-    status = Column(String, default="PENDING") # PENDING, PRINTING, COMPLETED, ERROR
+    status = Column(String, default="READY") # READY, QUEUED, PRINTING, COMPLETED, FAILED
     log = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.now)
     zpl_content = Column(Text, default="")

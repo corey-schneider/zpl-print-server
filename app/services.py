@@ -135,7 +135,8 @@ class PrinterManager:
             self.printer_ip = settings.printer_ip
         
         if not self.is_printer_online():
-            self.update_job_status(job_id, "OFFLINE", f"Printer unreachable at {self.printer_ip}:{self.printer_port}")
+            self.update_job_status(job_id, "QUEUED", f"Printer offline at {self.printer_ip}:{self.printer_port}. Job queued.")
+            logger.info(f"Job {job_id} queued - printer is offline")
             return
 
         self.update_job_status(job_id, "SENDING", "Connecting to printer...")
@@ -157,6 +158,38 @@ class PrinterManager:
                 
         except Exception as e:
             self.update_job_status(job_id, "FAILED", f"Error: {str(e)}")
+
+    async def process_queued_jobs(self):
+        """Process all queued jobs when printer comes back online."""
+        from app.database import SessionLocal, Job
+        
+        while True:
+            try:
+                # Check every 10 seconds for queued jobs
+                await asyncio.sleep(10)
+                
+                db = SessionLocal()
+                queued_jobs = db.query(Job).filter(Job.status == "QUEUED").order_by(Job.created_at).all()
+                db.close()
+                
+                if not queued_jobs:
+                    continue  # No queued jobs, keep polling
+                
+                # Check if printer is online
+                if not self.is_printer_online():
+                    continue  # Printer still offline, wait and try again
+                
+                logger.info(f"Printer is back online! Processing {len(queued_jobs)} queued jobs...")
+                
+                # Process queued jobs one by one
+                for job in queued_jobs:
+                    logger.info(f"Processing queued job {job.id}")
+                    await self.run_job(job.id)
+                    await asyncio.sleep(1)  # Small delay between jobs
+                    
+            except Exception as e:
+                logger.error(f"Error in queue processor: {e}")
+                await asyncio.sleep(10)  # Wait before retrying
 
     async def _try_pdf_passthrough(self, job_id: int, pdf_path: str) -> bool:
         """Skip PDF passthrough - Zebra printers need ZPL, not raw PDF."""
