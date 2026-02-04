@@ -116,7 +116,7 @@ async def upload_file(file: UploadFile = File(...), background_tasks: Background
 @app.post("/settings")
 async def update_settings(
     printer_ip: str = Form(...),
-    email_user: str = Form(...),
+    email_user: str = Form(""),
     email_pass: str = Form(""),
     email_polling_enabled: bool = Form(False),
     email_filter_from: str = Form(""),

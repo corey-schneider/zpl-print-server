@@ -504,9 +504,13 @@
     async function saveSettings(e) {
         e.preventDefault();
         const formData = new FormData(e.target);
-        await fetch('/settings', { method: 'POST', body: formData });
-        toggleSettings();
-        alert('Settings Saved');
+        const response = await fetch('/settings', { method: 'POST', body: formData });
+        if (response.ok) {
+            alert('Settings Saved');
+            location.reload();
+        } else {
+            alert('Failed to save settings');
+        }
     }
 </script>
 </body>
