@@ -67,6 +67,7 @@
                         <th class="px-6 py-3">File</th>
                         <th class="px-6 py-3">Source</th>
                         <th class="px-6 py-3">Status</th>
+                        <th class="px-6 py-3">Created</th>
                         <th class="px-6 py-3">Log</th>
                         <th class="px-6 py-3 text-right">Actions</th>
                     </tr>
@@ -265,7 +266,16 @@
         const jobs = await res.json();
         window.currentJobs = jobs; 
         const tbody = document.getElementById('job-table-body');
-        tbody.innerHTML = jobs.map(job => `
+        tbody.innerHTML = jobs.map(job => {
+            // Format timestamp
+            const created = new Date(job.created_at);
+            const timestamp = created.toLocaleString('en-US', {
+                month: 'short', day: '2-digit', 
+                hour: '2-digit', minute: '2-digit', second: '2-digit',
+                hour12: true
+            });
+            
+            return `
             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
                 <td class="px-6 py-4 font-mono text-xs text-gray-500">#${job.id}</td>
                 <td class="px-6 py-4 font-medium">${job.filename}</td>
@@ -278,6 +288,7 @@
                         ${job.status}
                     </span>
                 </td>
+                <td class="px-6 py-4 text-xs text-gray-600 dark:text-gray-400">${timestamp}</td>
                 <td class="px-6 py-4">
                     <button onclick="viewJobDetails(${job.id})" class="text-xs font-mono text-blue-500 hover:underline truncate max-w-[150px] block text-left">
                         ${job.log || 'View Details'}
@@ -289,7 +300,7 @@
                     <a href="/download/zpl/${job.id}" target="_blank" title="Download ZPL" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">⬇️</a>
                 </td>
             </tr>
-        `).join('');
+        `}).join('');
     }
     
     setInterval(pollJobs, 2000);

@@ -14,7 +14,11 @@ from PIL import Image, ImageDraw, ImageOps, ImageFilter
 from pyzbar.pyzbar import decode, ZBarSymbol
 
 # Setup logging for a production environment
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger(__name__)
 
 class LabelConverter:
@@ -243,106 +247,103 @@ class EmailPoller:
             imap.select("INBOX")
             
             # Search for unseen emails (we mark as read after processing)
-            status, messages = imap.search(None, "UNSEEN")
-            email_ids = messages[0].split()
-            logger.info(f"[POLL] Found {len(email_ids)} unseen emails")
+            # Search for unseen emails that match basic criteria WITHOUT fetching them yet
+            # This prevents marking unrelated emails as read
+            from_filter = f'FROM "{settings.email_filter_from}"'
+            subject_filter = f'SUBJECT "{settings.email_filter_subject}"'
             
-            for email_id in email_ids[-10:]:  # Process last 10 unseen emails
-                status, msg_data = imap.fetch(email_id, "(RFC822)")
-                for response_part in msg_data:
-                    if isinstance(response_part, tuple):
-                        msg = email.message_from_bytes(response_part[1])
-                        
-                        # SECURITY: Only accept from configured sender
-                        from_addr = msg.get("From", "").lower()
-                        subject = msg.get("Subject", "").lower()
-                        logger.debug(f"Checking email - From: {from_addr}, Subject: {subject}")
-                        
-                        if settings.email_filter_from.lower() not in from_addr:
-                            logger.warning(f"Rejected email from {from_addr} (expected: {settings.email_filter_from})")
-                            continue
-                        
-                        # SECURITY: Check subject contains configured term
-                        if settings.email_filter_subject.lower() not in subject:
-                            logger.warning(f"Rejected email with subject '{subject}' (missing: '{settings.email_filter_subject}')")
-                            continue
-                        
-                        # SECURITY: Check body contains configured term
-                        body_text = ""
-                        if msg.is_multipart():
+            # Search for emails matching BOTH from AND subject (case-insensitive)
+            status, messages = imap.search(None, 'UNSEEN', 'FROM', settings.email_filter_from)
+            
+            if status == 'OK':
+                email_ids = messages[0].split()
+                logger.info(f"[POLL] Found {len(email_ids)} unseen emails from {settings.email_filter_from}")
+                
+                for email_id in email_ids[-10:]:  # Process last 10 matching unseen emails
+                    status, msg_data = imap.fetch(email_id, "(RFC822)")
+                    for response_part in msg_data:
+                        if isinstance(response_part, tuple):
+                            msg = email.message_from_bytes(response_part[1])
+                            
+                            # Check subject
+                            subject = msg.get("Subject", "").lower()
+                            if settings.email_filter_subject.lower() not in subject:
+                                logger.debug(f"Rejected email - subject '{subject}' missing: '{settings.email_filter_subject}'")
+                                continue
+                            
+                            # Check body
+                            body_text = ""
+                            if msg.is_multipart():
+                                for part in msg.walk():
+                                    content_type = part.get_content_type()
+                                    if content_type == "text/plain":
+                                        try:
+                                            body_text += part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                                        except:
+                                            pass
+                                    elif content_type == "text/html":
+                                        try:
+                                            body_text += part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                                        except:
+                                            pass
+                            else:
+                                try:
+                                    body_text = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
+                                except:
+                                    body_text = msg.get_payload()
+                            
+                            if settings.email_filter_body.lower() not in body_text.lower():
+                                logger.debug(f"Rejected email - body missing: '{settings.email_filter_body}'")
+                                continue
+                            
+                            logger.info(f"✅ Email passed all filters - creating print job")
+                            
+                            # All checks passed - extract FIRST PDF attachment only
+                            pdf_found = False
                             for part in msg.walk():
-                                content_type = part.get_content_type()
-                                if content_type == "text/plain":
-                                    try:
-                                        body_text += part.get_payload(decode=True).decode('utf-8', errors='ignore')
-                                    except:
-                                        pass
-                                elif content_type == "text/html":
-                                    # Also extract from HTML as fallback
-                                    try:
-                                        body_text += part.get_payload(decode=True).decode('utf-8', errors='ignore')
-                                    except:
-                                        pass
-                        else:
-                            try:
-                                body_text = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
-                            except:
-                                body_text = msg.get_payload()
-                        
-                        logger.debug(f"Extracted body (first 200 chars): {body_text[:200]}")
-                        
-                        if settings.email_filter_body.lower() not in body_text.lower():
-                            logger.warning(f"Rejected email (missing '{settings.email_filter_body}' in body). Full body preview:\n{body_text[:300]}")
-                            continue
-                        
-                        logger.info(f"✅ Email passed all filters - creating print job")
-                        
-                        # All checks passed - extract FIRST PDF attachment only
-                        pdf_found = False
-                        for part in msg.walk():
-                            if part.get_content_disposition() == "attachment":
-                                filename = part.get_filename()
-                                if filename and filename.lower().endswith(".pdf") and not pdf_found:
-                                    pdf_data = part.get_payload(decode=True)
-                                    pdf_found = True
-                                    
-                                    # Create print job
-                                    db = SessionLocal()
-                                    job = Job(
-                                        filename=filename,
-                                        source="Email (eBay Shipping Label)",
-                                        status="READY"
-                                    )
-                                    db.add(job)
-                                    db.commit()
-                                    db.refresh(job)
-                                    job_id = job.id
-                                    db.close()
-                                    
-                                    # Save PDF
-                                    pdf_path = f"/app/data/{job_id}.pdf"
-                                    with open(pdf_path, "wb") as f:
-                                        f.write(pdf_data)
-                                    
-                                    # Pre-generate ZPL
-                                    converter = LabelConverter()
-                                    zpl_content = converter.convert_pdf_to_zpl(pdf_data, job_id=job_id)
-                                    zpl_path = f"/app/data/{job_id}.zpl"
-                                    with open(zpl_path, "w") as f:
-                                        f.write(zpl_content)
-                                    
-                                    logger.info(f"eBay label job created: {job_id} ({filename})")
-                                    
-                                    # Mark email as read so we don't process it again
-                                    imap.store(email_id, '+FLAGS', '\\Seen')
-                                    
-                                    # Start printing
-                                    mgr = PrinterManager()
-                                    asyncio.create_task(mgr.run_job(job_id))
-                                    break  # Only process first PDF, ignore others
-                        
-                        if not pdf_found:
-                            logger.warning(f"Valid eBay email but no PDF attachment found")
+                                if part.get_content_disposition() == "attachment":
+                                    filename = part.get_filename()
+                                    if filename and filename.lower().endswith(".pdf") and not pdf_found:
+                                        pdf_data = part.get_payload(decode=True)
+                                        pdf_found = True
+                                        
+                                        # Create print job
+                                        db = SessionLocal()
+                                        job = Job(
+                                            filename=filename,
+                                            source="Email (eBay Shipping Label)",
+                                            status="READY"
+                                        )
+                                        db.add(job)
+                                        db.commit()
+                                        db.refresh(job)
+                                        job_id = job.id
+                                        db.close()
+                                        
+                                        # Save PDF
+                                        pdf_path = f"/app/data/{job_id}.pdf"
+                                        with open(pdf_path, "wb") as f:
+                                            f.write(pdf_data)
+                                        
+                                        # Pre-generate ZPL
+                                        converter = LabelConverter()
+                                        zpl_content = converter.convert_pdf_to_zpl(pdf_data, job_id=job_id)
+                                        zpl_path = f"/app/data/{job_id}.zpl"
+                                        with open(zpl_path, "w") as f:
+                                            f.write(zpl_content)
+                                        
+                                        logger.info(f"eBay label job created: {job_id} ({filename})")
+                                        
+                                        # Mark email as read so we don't process it again
+                                        imap.store(email_id, '+FLAGS', '\\Seen')
+                                        
+                                        # Start printing
+                                        mgr = PrinterManager()
+                                        asyncio.create_task(mgr.run_job(job_id))
+                                        break  # Only process first PDF, ignore others
+                            
+                            if not pdf_found:
+                                logger.warning(f"Valid eBay email but no PDF attachment found")
             
             imap.close()
             imap.logout()

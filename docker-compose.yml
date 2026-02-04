@@ -6,6 +6,8 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    environment:
+      - TZ=America/New_York
     volumes:
       - ./:/app/workspace
       - ./data:/app/data
