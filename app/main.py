@@ -39,6 +39,10 @@ async def home(request: Request):
         "is_first_run": IS_FIRST_RUN
     })
 
+@app.get("/help", response_class=HTMLResponse)
+async def help_page(request: Request):
+    return templates.TemplateResponse("help.html", {"request": request})
+
 def _detect_file_type(filename: str, content: bytes) -> str:
     """Detect if file is PDF or ZPL based on extension and content."""
     ext = filename.lower().split('.')[-1] if '.' in filename else ''

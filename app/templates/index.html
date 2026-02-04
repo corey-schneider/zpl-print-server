@@ -40,11 +40,16 @@
     <div class="flex justify-between items-center mb-8">
         <div>
             <h1 class="text-3xl font-bold tracking-tight">Print Server</h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400">PDF to ZPL Automation • Intel N100</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">PDF to ZPL Automation</p>
         </div>
-        <button onclick="toggleSettings()" class="bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 px-4 py-2 rounded-lg transition">
-            ⚙️ Settings
-        </button>
+        <div class="flex gap-3">
+            <a href="/help" class="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-medium text-sm">
+                ❓ Help
+            </a>
+            <button onclick="toggleSettings()" class="bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 px-4 py-2 rounded-lg transition">
+                ⚙️ Settings
+            </button>
+        </div>
     </div>
 
     <div id="drop-zone" class="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-10 text-center mb-8 transition-colors cursor-pointer bg-white dark:bg-gray-800 shadow-sm hover:border-gray-400 dark:hover:border-gray-600">

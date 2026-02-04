@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help & FAQ - ZPL Print Server</title>
+    <script src="{{ url_for('static', path='/tailwindcss-3.4.17.js') }}"></script>
+    <script>
+        tailwind.config = { darkMode: 'class' }
+    </script>
+    <style>
+        .faq-item { transition: all 0.2s ease; }
+        .faq-item.expanded .faq-answer { max-height: 500px; opacity: 1; }
+        .faq-item .faq-answer { max-height: 0; opacity: 0; overflow: hidden; transition: all 0.3s ease; }
+        .faq-item .faq-toggle { transition: transform 0.3s ease; }
+        .faq-item.expanded .faq-toggle { transform: rotate(180deg); }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-200 font-sans">
+
+<div class="container mx-auto p-6 max-w-4xl">
+    
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-12">
+        <div>
+            <h1 class="text-4xl font-bold tracking-tight mb-2">Help & FAQ</h1>
+            <p class="text-gray-600 dark:text-gray-400">Everything you need to know about ZPL Print Server</p>
+        </div>
+        <a href="/" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition">
+            ← Back Home
+        </a>
+    </div>
+
+    <!-- Getting Started -->
+    <section class="mb-12">
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+            <span class="text-3xl">🚀</span> Getting Started
+        </h2>
+        <div class="space-y-4">
+            <div class="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                <h3 class="font-bold text-lg mb-2">What is ZPL Print Server?</h3>
+                <p class="text-gray-700 dark:text-gray-300">
+                    ZPL Print Server is a web application that helps you print labels to Zebra thermal printers. It supports:
+                </p>
+                <ul class="list-disc list-inside text-gray-700 dark:text-gray-300 mt-2 space-y-1">
+                    <li><strong>PDF uploads</strong> - Automatically converts PDFs to printer-compatible format</li>
+                    <li><strong>ZPL uploads</strong> - Upload pre-made ZPL files directly to your printer</li>
+                    <li><strong>Email automation</strong> - Automatically pulls labels from your email inbox</li>
+                    <li><strong>Smart power control</strong> - Optional integration with smart plugs for power management</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Setup & Configuration -->
+    <section class="mb-12">
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+            <span class="text-3xl">⚙️</span> Setup & Configuration
+        </h2>
+        <div class="space-y-3">
+            <!-- Printer Setup -->
+            <div class="faq-item bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button onclick="toggleFaq(this)" class="w-full text-left px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex justify-between items-center">
+                    <span class="font-bold">How do I configure my printer?</span>
+                    <span class="faq-toggle text-xl">▼</span>
+                </button>
+                <div class="faq-answer px-6 pb-4">
+                    <ol class="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300">
+                        <li>Open the <strong>Settings</strong> (⚙️ button in top-right)</li>
+                        <li>Go to the <strong>🖨️ Printer</strong> tab</li>
+                        <li>Enter your printer's IP address (e.g., 192.168.1.111)</li>
+                        <li>Click <strong>Test Connection</strong> to verify</li>
+                        <li>Click <strong>Save Changes</strong></li>
+                    </ol>
+                    <p class="mt-3 text-sm text-gray-600 dark:text-gray-400">
+                        <strong>Need to find your printer's IP?</strong> Check your printer's display panel or access your router's admin page.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Email Setup -->
+            <div class="faq-item bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button onclick="toggleFaq(this)" class="w-full text-left px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex justify-between items-center">
+                    <span class="font-bold">How do I set up email polling for eBay labels?</span>
+                    <span class="faq-toggle text-xl">▼</span>
+                </button>
+                <div class="faq-answer px-6 pb-4">
+                    <ol class="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300">
+                        <li>Go to <strong>Settings</strong> → <strong>📧 Email</strong> tab</li>
+                        <li>Check the <strong>"Enable Email Polling"</strong> checkbox</li>
+                        <li>Enter your Yahoo Mail email address</li>
+                        <li>Create an <strong>app-specific password</strong>:
+                            <ul class="list-disc list-inside ml-4 mt-2 text-sm">
+                                <li>Visit your <a href="https://login.yahoo.com/account/security" class="text-blue-600 dark:text-blue-400 hover:underline">Yahoo Account Security</a></li>
+                                <li>Generate a new "App password" (not your regular password)</li>
+                                <li>Paste the generated password into the field</li>
+                            </ul>
+                        </li>
+                        <li>Configure email filters (sender, subject, body keywords)</li>
+                        <li>Set check frequency (default: 60 seconds)</li>
+                        <li>Click <strong>Test Email Connection</strong> to verify</li>
+                        <li>Click <strong>Save Changes</strong></li>
+                    </ol>
+                    <p class="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded text-sm text-blue-900 dark:text-blue-200">
+                        💡 <strong>Tip:</strong> Use "all three" filters to prevent unwanted emails from being printed. For eBay, try: From: "ebay@ebay.com", Subject: "shipping label", Body: "ready"
+                    </p>
+                </div>
+            </div>
+
+            <!-- Smart Plug Setup -->
+            <div class="faq-item bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button onclick="toggleFaq(this)" class="w-full text-left px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex justify-between items-center">
+                    <span class="font-bold">What's the Smart Plug feature?</span>
+                    <span class="faq-toggle text-xl">▼</span>
+                </button>
+                <div class="faq-answer px-6 pb-4">
+                    <p class="text-gray-700 dark:text-gray-300 mb-3">
+                        If you have an expensive printer or want to save electricity, you can automatically turn your printer on/off based on print jobs.
+                    </p>
+                    <ol class="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300 mb-3">
+                        <li>Get a smart plug (TP-Link, IFTTT-compatible, etc.)</li>
+                        <li>Go to <strong>Settings</strong> → <strong>⚡ Smart Plug</strong></li>
+                        <li>Check <strong>"Enable Smart Plug Integration"</strong></li>
+                        <li>Enter webhook URLs for turning the plug ON and OFF</li>
+                        <li>Click <strong>Save Changes</strong></li>
+                    </ol>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">
+                        <strong>Optional feature:</strong> You don't need this to use the printer. It's only for power savings.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Uploading & Printing -->
+    <section class="mb-12">
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+            <span class="text-3xl">📄</span> Uploading & Printing
+        </h2>
+        <div class="space-y-3">
+            <!-- PDF Upload -->
+            <div class="faq-item bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button onclick="toggleFaq(this)" class="w-full text-left px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex justify-between items-center">
+                    <span class="font-bold">How do I upload and print a PDF?</span>
+                    <span class="faq-toggle text-xl">▼</span>
+                </button>
+                <div class="faq-answer px-6 pb-4">
+                    <ol class="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300">
+                        <li><strong>Go to the home page</strong></li>
+                        <li><strong>Drag & drop</strong> your PDF file into the upload zone, or click to browse</li>
+                        <li>The app will automatically:
+                            <ul class="list-disc list-inside ml-4 mt-2">
+                                <li>Convert the PDF to ZPL format</li>
+                                <li>Generate a preview image</li>
+                                <li>Send it to your printer</li>
+                            </ul>
+                        </li>
+                        <li>Check the <strong>jobs table</strong> below to see the status</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- ZPL Upload -->
+            <div class="faq-item bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button onclick="toggleFaq(this)" class="w-full text-left px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex justify-between items-center">
+                    <span class="font-bold">Can I upload ZPL files directly?</span>
+                    <span class="faq-toggle text-xl">▼</span>
+                </button>
+                <div class="faq-answer px-6 pb-4">
+                    <p class="text-gray-700 dark:text-gray-300 mb-3">
+                        <strong>Yes!</strong> If you already have a ZPL file (e.g., exported from design software), you can upload it directly.
+                    </p>
+                    <ol class="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300">
+                        <li>The upload zone accepts both PDF and ZPL files</li>
+                        <li>Just drop your <code class="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded text-sm">.zpl</code> file</li>
+                        <li>It will be sent directly to the printer <strong>without conversion</strong> (lossless)</li>
+                    </ol>
+                    <p class="mt-3 text-sm text-gray-600 dark:text-gray-400">
+                        💡 <strong>Pro tip:</strong> ZPL uploads are perfect for labels you've already designed and tested.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Job Status -->
+            <div class="faq-item bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button onclick="toggleFaq(this)" class="w-full text-left px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex justify-between items-center">
+                    <span class="font-bold">What do the job statuses mean?</span>
+                    <span class="faq-toggle text-xl">▼</span>
+                </button>
+                <div class="faq-answer px-6 pb-4">
+                    <div class="space-y-2 text-gray-700 dark:text-gray-300">
+                        <div><strong class="text-yellow-600 dark:text-yellow-400">READY</strong> - File received, waiting to print</div>
+                        <div><strong class="text-blue-600 dark:text-blue-400">PRINTING</strong> - Currently sending to printer</div>
+                        <div><strong class="text-green-600 dark:text-green-400">COMPLETED</strong> - Successfully printed</div>
+                        <div><strong class="text-red-600 dark:text-red-400">FAILED</strong> - Error occurred (check the log for details)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Troubleshooting -->
+    <section class="mb-12">
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+            <span class="text-3xl">🔧</span> Troubleshooting
+        </h2>
+        <div class="space-y-3">
+            <!-- Printer Offline -->
+            <div class="faq-item bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button onclick="toggleFaq(this)" class="w-full text-left px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex justify-between items-center">
+                    <span class="font-bold">Printer shows "OFFLINE"</span>
+                    <span class="faq-toggle text-xl">▼</span>
+                </button>
+                <div class="faq-answer px-6 pb-4">
+                    <ol class="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300">
+                        <li><strong>Check physical connection:</strong> Is the printer powered on and connected to the network?</li>
+                        <li><strong>Ping the printer:</strong> Open terminal and run <code class="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded text-sm">ping 192.168.1.111</code> (use your printer's IP)</li>
+                        <li><strong>Verify IP address:</strong> Go to Settings and double-check the IP is correct</li>
+                        <li><strong>Check firewall:</strong> Ensure port 9100 is not blocked</li>
+                        <li><strong>Restart printer:</strong> Power cycle the printer and try again</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- Email Not Working -->
+            <div class="faq-item bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button onclick="toggleFaq(this)" class="w-full text-left px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex justify-between items-center">
+                    <span class="font-bold">Email polling isn't picking up labels</span>
+                    <span class="faq-toggle text-xl">▼</span>
+                </button>
+                <div class="faq-answer px-6 pb-4">
+                    <ol class="list-decimal list-inside space-y-2 text-gray-700 dark:text-gray-300">
+                        <li><strong>Check if enabled:</strong> Go to Settings → Email and make sure "Enable Email Polling" is checked</li>
+                        <li><strong>Verify credentials:</strong> Use the "Test Email Connection" button to verify your username and password</li>
+                        <li><strong>Check filters:</strong> Emails must match <strong>all three</strong> filters (From, Subject, Body). Adjust them if needed</li>
+                        <li><strong>Check frequency:</strong> Increase the check frequency to test (default is 60 seconds)</li>
+                        <li><strong>App password:</strong> Make sure you're using an <strong>app-specific password</strong>, not your regular Yahoo password</li>
+                        <li><strong>Check inbox:</strong> Verify the email is in your main inbox (not spam/trash)</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- PDF Conversion Issues -->
+            <div class="faq-item bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button onclick="toggleFaq(this)" class="w-full text-left px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex justify-between items-center">
+                    <span class="font-bold">PDF preview looks wrong or doesn't print correctly</span>
+                    <span class="faq-toggle text-xl">▼</span>
+                </button>
+                <div class="faq-answer px-6 pb-4">
+                    <div class="space-y-2 text-gray-700 dark:text-gray-300">
+                        <p><strong>This can happen when:</strong></p>
+                        <ul class="list-disc list-inside space-y-1">
+                            <li>PDF dimensions don't match the label size (4x6 for Zebra GX420t)</li>
+                            <li>PDF has unusual fonts or special characters</li>
+                            <li>Image quality is very low in the original PDF</li>
+                        </ul>
+                        <p class="mt-3"><strong>Solutions:</strong></p>
+                        <ul class="list-disc list-inside space-y-1">
+                            <li>Try uploading a ZPL file instead (if you have one)</li>
+                            <li>Check the PDF preview image in the jobs table</li>
+                            <li>Adjust your PDF before uploading (proper dimensions, quality)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Advanced -->
+    <section class="mb-12">
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+            <span class="text-3xl">⚡</span> Advanced
+        </h2>
+        <div class="space-y-3">
+            <!-- File Formats -->
+            <div class="faq-item bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button onclick="toggleFaq(this)" class="w-full text-left px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex justify-between items-center">
+                    <span class="font-bold">What file formats are supported?</span>
+                    <span class="faq-toggle text-xl">▼</span>
+                </button>
+                <div class="faq-answer px-6 pb-4">
+                    <div class="space-y-3">
+                        <div>
+                            <strong class="text-blue-600 dark:text-blue-400">PDF Files (.pdf)</strong>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Standard PDF documents - automatically converted to ZPL</p>
+                        </div>
+                        <div>
+                            <strong class="text-blue-600 dark:text-blue-400">ZPL Files (.zpl)</strong>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Zebra Programming Language files - sent directly to printer without conversion</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Storage -->
+            <div class="faq-item bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button onclick="toggleFaq(this)" class="w-full text-left px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex justify-between items-center">
+                    <span class="font-bold">Where is my data stored?</span>
+                    <span class="faq-toggle text-xl">▼</span>
+                </button>
+                <div class="faq-answer px-6 pb-4">
+                    <div class="space-y-2 text-gray-700 dark:text-gray-300">
+                        <p><strong>Local Storage:</strong></p>
+                        <ul class="list-disc list-inside space-y-1 mb-3">
+                            <li>All files stored in <code class="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded text-sm">/app/data/</code></li>
+                            <li>Database (SQLite) at <code class="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded text-sm">/app/data/printer.db</code></li>
+                        </ul>
+                        <p><strong>Security:</strong></p>
+                        <ul class="list-disc list-inside">
+                            <li>Email passwords are encrypted with an AES key stored in <code class="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded text-sm">.env</code></li>
+                            <li>No data is sent to external servers</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Theme -->
+            <div class="faq-item bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button onclick="toggleFaq(this)" class="w-full text-left px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex justify-between items-center">
+                    <span class="font-bold">How do I change the theme?</span>
+                    <span class="faq-toggle text-xl">▼</span>
+                </button>
+                <div class="faq-answer px-6 pb-4">
+                    <p class="text-gray-700 dark:text-gray-300">
+                        Look for the theme switcher icon in the <strong>bottom-left corner</strong> of the page. Click it to toggle between:
+                    </p>
+                    <ul class="list-disc list-inside text-gray-700 dark:text-gray-300 mt-2 space-y-1">
+                        <li><strong>☀️ Light</strong> - Bright, high-contrast mode</li>
+                        <li><strong>🖥️ System</strong> - Follows your OS preference (default)</li>
+                        <li><strong>🌙 Dark</strong> - Dark mode for low-light environments</li>
+                    </ul>
+                    <p class="mt-3 text-sm text-gray-600 dark:text-gray-400">
+                        Your preference is saved in your browser's storage.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <div class="border-t border-gray-300 dark:border-gray-700 pt-8 mt-12">
+        <p class="text-center text-gray-600 dark:text-gray-400">
+            Need more help? Check the job logs for error messages, or restart the application.
+        </p>
+    </div>
+
+</div>
+
+<!-- Theme Switcher -->
+<div id="theme-switcher" class="fixed bottom-6 left-6 z-40">
+    <button id="theme-toggle" onclick="toggleThemeMenu()" class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-2 text-xl hover:shadow-xl transition">
+        <span id="theme-icon">🖥️</span>
+    </button>
+    <div id="theme-menu" class="hidden absolute bottom-12 left-0 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-1 flex flex-col gap-1">
+        <button onclick="setTheme('light')" class="px-3 py-2 rounded text-sm transition hover:bg-gray-100 dark:hover:bg-gray-700 text-left flex items-center gap-2">☀️ <span>Light</span></button>
+        <button onclick="setTheme('system')" class="px-3 py-2 rounded text-sm transition hover:bg-gray-100 dark:hover:bg-gray-700 text-left flex items-center gap-2">🖥️ <span>System</span></button>
+        <button onclick="setTheme('dark')" class="px-3 py-2 rounded text-sm transition hover:bg-gray-100 dark:hover:bg-gray-700 text-left flex items-center gap-2">🌙 <span>Dark</span></button>
+    </div>
+</div>
+
+<script>
+    // --- FAQ Toggle ---
+    function toggleFaq(button) {
+        const item = button.closest('.faq-item');
+        item.classList.toggle('expanded');
+    }
+
+    // --- Theme Switching ---
+    function getSystemPreference() {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+
+    function applyTheme(theme) {
+        const html = document.documentElement;
+        if (theme === 'dark' || (theme === 'system' && getSystemPreference() === 'dark')) {
+            html.classList.add('dark');
+        } else {
+            html.classList.remove('dark');
+        }
+    }
+
+    function getThemeIcon(theme) {
+        const icons = { light: '☀️', system: '🖥️', dark: '🌙' };
+        return icons[theme] || '🖥️';
+    }
+
+    function updateThemeIcon(theme) {
+        document.getElementById('theme-icon').textContent = getThemeIcon(theme);
+    }
+
+    function toggleThemeMenu() {
+        const menu = document.getElementById('theme-menu');
+        menu.classList.toggle('hidden');
+        if (!menu.classList.contains('hidden')) {
+            document.addEventListener('click', closeThemeMenuOnClickOutside);
+        }
+    }
+
+    function closeThemeMenuOnClickOutside(e) {
+        const switcher = document.getElementById('theme-switcher');
+        if (!switcher.contains(e.target)) {
+            document.getElementById('theme-menu').classList.add('hidden');
+            document.removeEventListener('click', closeThemeMenuOnClickOutside);
+        }
+    }
+
+    function setTheme(theme) {
+        localStorage.setItem('theme-preference', theme);
+        applyTheme(theme);
+        updateThemeIcon(theme);
+        document.getElementById('theme-menu').classList.add('hidden');
+    }
+
+    function initTheme() {
+        const savedTheme = localStorage.getItem('theme-preference') || 'system';
+        applyTheme(savedTheme);
+        updateThemeIcon(savedTheme);
+    }
+
+    initTheme();
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        const savedTheme = localStorage.getItem('theme-preference') || 'system';
+        if (savedTheme === 'system') {
+            applyTheme('system');
+        }
+    });
+</script>
+
+</body>
+</html>
