@@ -1,79 +1,128 @@
 # ZPL Print Server
 
-A FastAPI-based web server that converts PDF documents to ZPL (Zebra Programming Language) format and manages print jobs to Zebra label printers. Features email polling for automatic job processing and smart plug integration for printer power management.
+A FastAPI web server that converts PDF documents to ZPL (Zebra Programming Language) format and manages print jobs to Zebra thermal printers. Features intelligent job queueing, email automation, and a modern dark/light theme UI.
 
-## Features
+## ✨ Features
 
-- **PDF to ZPL Conversion**: Automatically converts uploaded PDF files to Zebra printer-compatible ZPL format
-- **Web Interface**: Clean, responsive web UI for uploading files and monitoring print jobs
-- **Email Integration**: Polls email inbox for attachments and automatically converts them to print jobs
-- **Print Job Management**: Database-backed job tracking with status monitoring and logging
-- **Smart Plug Integration**: Supports TP-Link smart plugs for automated printer power control
-- **RESTful API**: Comprehensive API endpoints for programmatic access
-- **Containerized**: Docker support for easy deployment
+- **📄 Universal File Upload**: Auto-detects PDF or ZPL files via drag-and-drop or file picker
+- **🔄 PDF to ZPL Conversion**: High-quality conversion using PyMuPDF with adaptive thresholding
+- **🌐 Modern Web Interface**: Responsive dark/light theme UI with real-time job monitoring
+- **📧 Email Automation**: Polls Yahoo Mail for eBay shipping labels and auto-prints them
+- **📋 Job Queue System**: Automatic queueing when printer offline, auto-processes when online
+- **❌ Job Cancellation**: Cancel queued jobs before they print
+- **🖼️ Live Previews**: PNG preview generation for all ZPL labels
+- **🔒 Security Hardened**: File type validation, size limits, AES password encryption
+- **💾 Database Tracking**: SQLite-backed job history with status logging
+- **🔌 Smart Plug Support**: Optional TP-Link smart plug integration (untested)
+- **🏥 Health Monitoring**: `/health` endpoint for container orchestration
+- **🐳 Docker Ready**: Optimized container with resource limits
 
-## Prerequisites
+## 📋 Prerequisites
 
-- Python 3.11+
-- Docker (optional, for containerized deployment)
-- Zebra printer with network connectivity
-- Email account (for email polling feature)
-- Smart plug (optional, for power management)
+- **Docker & Docker Compose** (recommended deployment method)
+- **Zebra Thermal Printer** with network connectivity (tested on GX420t, port 9100)
+- **Optional**: Yahoo Mail account (for email automation)
+- **Optional**: TP-Link smart plug (for power management - untested)
 
-## Installation
+## 🚀 Quick Start (Docker)
 
-### Docker Deployment (Recommended)
-
-Simply clone and run:
+### 1. Deploy Container
 
 ```bash
 git clone <repository-url>
 cd zpl-print-server
-docker compose up -d --build
+docker compose up -d
 ```
 
-The system will:
-1. ✅ Automatically generate an encryption key for password storage
-2. ✅ Create a `.env` file to persist the key
-3. ✅ Initialize the database
-4. ✅ Start the web server on `http://localhost:8000`
+The server starts at **http://localhost:8000**
 
-**On first startup**, you'll see a yellow banner in the web UI informing you that the encryption key was generated. Back up the `.env` file in a safe location (it's needed to decrypt your stored passwords).
+### 2. First-Time Setup
 
-### Local Development
+On first startup, the system automatically:
+- ✅ Generates AES encryption key (stored in `.env`)
+- ✅ Initializes SQLite database (`data/printer.db`)
+- ✅ Shows yellow banner in UI confirming setup
 
-1. Clone and setup:
-```bash
-git clone <repository-url>
-cd zpl-print-server
-pip install -r requirements.txt
+**⚠️ Important**: Backup the `.env` file - it's needed to decrypt saved email passwords!
+
+### 3. Configure Printer
+
+1. Open **http://localhost:8000**
+2. Click **⚙️ Settings** button
+3. Enter your printer's IP address (e.g., `192.168.1.111`)
+4. Click **Save Settings**
+5. Verify green checkmark for printer connectivity
+
+You're ready to print! 🎉
+
+---
+
+## 💻 Alternative: Local Development
+
+If you prefer running without Docker:
+⚙️ Configuration
+
+All settings are managed through the web UI at **http://localhost:8000**
+
+### Printer Settings
+- **Printer IP Address**: Local network IP of your Zebra printer (e.g., `192.168.1.111`)
+- **Printer Port**: Default is `9100` (Zebra standard)
+- **Status Check**: Live connectivity indicator
+
+### Email Automation (Optional)
+1. **Enable Email Polling**: Toggle checkbox to activate
+2. **Yahoo Email**: Your Yahoo Mail address
+3. **App Password**: Generate one at [Yahoo Security Settings](https://login.yahoo.com/account/security)
+4. **Scan Interval**: How often to check (minimum 10 seconds)
+5. **Email Filters**: Configure sender, subject, and body text filters
+
+### Advanced Settings
+- **Smart Plug Integration**: Configure webhooks for TP-Link plugs (untested)
+- **Timezone**: Set via `TZ` environment variable in `docker-compose.yml`
+
+---
+
+## 📡 API Endpoints
+
+### Core Endpoints
+- `GET /` - Web UI home page with job table
+- `GET /help` - Comprehensive FAQ and documentation
+- `📁 Project Structure
+
+```
+zpl-print-server/
+├── app/
+│   ├── main.py              # FastAPI app, routes, file handling
+│   ├── database.py          # SQLAlchemy models (Settings, Job)
+│   ├── services.py          # PrinterManager, EmailPoller, LabelConverter
+│   ├── encryption.py        # AES encryption for passwords
+│   └── templates/
+│       ├── index.html       # Main UI with drag-drop upload
+│       └── help.html        # FAQ and documentation
+├── data/                    # SQLite DB and uploaded files (persisted)
+├── docker-compose.yml       # Container orchestration
+├── Dockerfile              # Python 3.12-slim container
+├── requirements.txt        # Python dependencies
+├── SECURITY_AUDIT.md       # Security review and recommendations
+└── DEPLOYMENT_GUIDE.md     # Production deployment checklist
 ```
 
-2. Run the server:
-```bash
-uvicorn app.main:app --reload
-```
+## 🔧 Core Dependencies
 
-The web server will start at `http://localhost:8000`. An encryption key will be automatically generated and saved to `.env`.
+- **FastAPI** `0.109.0` - Modern async web framework
+- **SQLAlchemy** `2.0.25` - Database ORM with connection pooling
+- **PyMuPDF** `1.23.22` - High-quality PDF rendering and conversion
+- **Pillow** `10.2.0` - Image processing and manipulation
+- **cryptography** `41.0.7` - AES encryption (Fernet) for passwords
+- **uvicorn** `0.27.0` - ASGI web server
+- **Jinja2** `3.1.3` - Template rendering
+- **numpy** `1.26.3` - Image array processing
 
-## Configuration
-
-Configure the application through the web interface at `http://localhost:8000`:
-
-- **Printer IP**: Network address of your Zebra printer
-- **Email Settings**: Email username and password for SMTP polling
-- **Smart Plug**: Enable/disable smart plug control and set webhook URLs
-
-## API Endpoints
-
-### Web Interface
-- `GET /` - Home page with job history and settings
-- `POST /upload` - Upload PDF file for conversion and printing
-- `POST /settings` - Update application settings
-- `GET /api/jobs` - Retrieve recent print jobs (JSON)
-
-## Project Structure
-
+### Container Environment
+- **Base Image**: `python:3.12-slim`
+- **System Packages**: `libzbar0`, `poppler-utils`
+- **Data Persistence**: `/app/data` volume mount
+- **Resource Limits**: 512MB RAM, 0.5 CPU
 ```
 zpl-print-server/
 ├── app/
@@ -99,35 +148,172 @@ zpl-print-server/
 - **Pillow** - Image processing
 - **python-kasa** - TP-Link smart plug control
 - **jinja2** - Template engine
+🖨️ How It Works
 
-## Environment Setup
+### Job Processing Flow
 
-The application uses a SQLite database for persistent storage. Database files are stored in `/app/data/`.
+1. **Upload**: Drag PDF/ZPL file to web UI or upload via API
+2. **Detection**: Server auto-detects file type based on content
+3. **Conversion** (PDF only): Converts to ZPL using PyMuPDF at 203 DPI
+4. **Preview**: Generates PNG preview for verification
+5. **Queue**: Job marked "READY" and queued for printing
+6. **Print**: Sends ZPL directly to printer via raw TCP socket (port 9100)
+7. **Status**: Updates to "COMPLETED" or "FAILED" with detailed logs
 
-## Running Print Jobs
+### Job Queue Behavior
 
-### Manual Upload
-Upload PDF files directly through the web interface at `/`
+- **Printer Online**: Jobs print immediately
+- **Printer Offline**: Jobs automatically queue with "QUEUED" status
+- **Auto-Resume**: Queue processor checks every 10 seconds, auto-prints when printer returns
+- **Cancellation**: Click red ❌ button to cancel queued jobs
 
-### Email Integration
-The email poller automatically:
-1. Checks configured email account
-2. Downloads PDF attachments
-3. Converts to ZPL format
-4. Creates print jobs
+### Email Automation (Optional)
 
-### API Upload
-Send PDF files programmatically to `/upload` endpoint
+When enabled, the server:
+1. Polls Yahoo Mail every 60 seconds (configurable)
+2. Filters emails by sender, subject, and body text
+3. Downloads first PDF attachment from matching emails
+4. Converts to ZPL and queues for printing
+5. Marks email as read to prevent reprocessing
 
-## Smart Plug Integration
+**Perfect for**: Auto-printing eBay shipping labels from `ebay@ebay.com` emails
 
-The server supports smart plug control via webhooks:
-- **TP-Link Kasa Plugs**: Direct local control
-- **Amazon/Other Plugs**: Webhook-based control
+---
 
-Configure webhook URLs in settings for automated printer power management.
+## 🔒 Security Features
 
-## Troubleshooting
+- ✅ **File Upload Limits**: 2MB maximum (configurable via `MAX_FILE_SIZE_MB`)
+- ✅ **File Type Validation**: Only `.pdf`, `.zpl`, `.txt` allowed
+- ✅ **Path Traversal Protection**: Job ID validation on all endpoints
+- ✅ **Password Encryption**: AES (Fernet) encryption for email passwords
+- ✅ **SQL Injection Prevention**: SQLAlchemy ORM with parameterized queries
+- ✅ **Connection Pooling**: Prevents database connection leaks
+- ✅ **Error Sanitization**: No internal details exposed in error messages
+
+### Production Recommendations
+- Add rate limiting for `/upload` endpoint (see `SECURITY_AUDIT.md`)
+- Deploy behind HTTPS reverse proxy (Nginx/Traefik)
+- Configure firewall rules for printer port access
+- Regular backups of `data/` directory and `.env` file
+
+---
+
+## 🛠️ Troubleshooting
+
+### Printer Connection Issues
+```bash
+# Test printer connectivity
+ping 192.168.1.111
+
+# Check if port 9100 is open
+nc -zv 192.168.1.111 9100
+
+# View logs
+docker compose logs -f
+```
+
+### Email Polling Not Working
+1. Verify Yahoo Mail credentials in Settings
+2. Generate app-specific password (not your Yahoo password!)
+3. Enable polling toggle in Email tab
+4. Check logs: `docker compose logs -f | grep Email`
+5. Test manually via "Test Email Connection" button
+
+### Jobs Stuck in QUEUED Status
+- Verify printer IP is correct in Settings
+- Check printer is powered on and connected to network
+- Printer must be on same network as server
+- Queue processor checks every 10 seconds automatically
+
+### Database Corruption
+```bash
+# Backup current database
+cp data/printer.db data/printer.db.backup
+
+# Rebuild from scratch
+rm data/printer.db
+docker compose restart
+```
+
+### Container Won't Start
+```bash
+# Check logs for errors
+docker compose logs
+
+# Rebuild from scratch
+docker compose down
+docker compose build --no-cache
+docker compose up -d
+```
+
+---
+
+## 📊 Monitoring
+
+### Health Check Endpoint
+```bash
+curl http://localhost:8000/health
+```
+
+Response:
+```json
+{
+  "status": "healthy",
+  "service": "zpl-print-server",
+  "timestamp": "2026-02-04T12:00:00.123456"
+}
+```
+
+### Docker Health Check
+Add to `docker-compose.yml`:
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  interval: 30s
+  timeout: 3s
+  retries: 3
+  start_period: 5s
+```
+
+### Log Monitoring
+```bash
+# Follow logs in real-time
+docker compose logs -f
+
+# Last 100 lines
+docker compose logs --tail=100
+
+# Filter by service
+docker compose logs zpl-service
+```
+
+---
+
+## 📚 Additional Documentation
+
+- **Help Page** - Access at `http://localhost:8000/help` for in-app documentation
+
+---
+
+## 🤝 Contributing
+
+This is a personal project, but suggestions and improvements are welcome!
+
+---
+
+## 📄 License
+
+See repository for license information.
+
+---
+
+## 🎯 Tested Configuration
+
+- **Printer**: Zebra GX420t thermal printer (4x6" labels at 203 DPI)
+- **Platform**: Docker on macOS ARM64 (M1/M2)
+- **Network**: Local LAN with static printer IP
+- **Email**: Yahoo Mail with app-specific password
+- **Production**: Security hardened and ready for deployment
 
 - **PDF Conversion Fails**: Ensure `poppler-utils` is installed
 - **Printer Connection**: Verify printer IP is accessible via ping
