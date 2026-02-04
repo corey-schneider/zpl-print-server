@@ -458,6 +458,7 @@
                     ${job.source === 'ZPL Direct Upload' ? '' : `<a href="javascript:openPdfPreview('/download/pdf/${job.id}')" title="View PDF" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded cursor-pointer">PDF 📄</a>`}
                     <a href="javascript:openZplPreview(${job.id})" title="Preview ZPL" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded cursor-pointer">ZPL 🖼️</a>
                     <a href="/download/zpl/${job.id}" target="_blank" title="Download ZPL" class="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">⬇️</a>
+                    ${job.status === 'QUEUED' ? `<button onclick="cancelJob(${job.id})" title="Cancel Job" class="p-2 hover:bg-red-200 dark:hover:bg-red-900 rounded text-red-600 dark:text-red-400 font-bold">✕</button>` : ''}
                 </td>
             </tr>
         `}).join('');
@@ -465,6 +466,29 @@
     
     setInterval(pollJobs, 2000);
     pollJobs(); // Initial load
+
+    // --- Cancel Job ---
+    async function cancelJob(jobId) {
+        if (!confirm(`Cancel job #${jobId}? This will remove it from the queue.`)) {
+            return;
+        }
+        
+        try {
+            const res = await fetch(`/api/jobs/${jobId}`, {
+                method: 'DELETE'
+            });
+            
+            if (res.ok) {
+                showToast('✅ Job cancelled successfully', 'success');
+                pollJobs(); // Refresh the job list
+            } else {
+                const data = await res.json();
+                showToast(`❌ ${data.detail || 'Failed to cancel job'}`, 'error');
+            }
+        } catch (error) {
+            showToast('❌ Error cancelling job', 'error');
+        }
+    }
 
     // --- Settings ---
     function toggleSettings() {

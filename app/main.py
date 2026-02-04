@@ -233,6 +233,36 @@ async def download_zpl(job_id: int):
         )
     raise HTTPException(status_code=404, detail="ZPL file not found on disk.")
 
+@app.delete("/api/jobs/{job_id}")
+async def cancel_job(job_id: int):
+    """Cancel a queued job."""
+    validate_job_id(job_id)
+    
+    with SessionLocal() as db:
+        job = db.query(Job).filter(Job.id == job_id).first()
+        
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        if job.status != "QUEUED":
+            raise HTTPException(status_code=400, detail="Can only cancel jobs with QUEUED status")
+        
+        # Delete the job and associated files
+        db.delete(job)
+        db.commit()
+        
+        # Clean up files
+        import os
+        for ext in [".pdf", ".zpl", "_preview.png"]:
+            file_path = os.path.join(DATA_DIR, f"{job_id}{ext}")
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except Exception as e:
+                    pass  # Continue even if file deletion fails
+    
+    return JSONResponse({"status": "cancelled", "job_id": job_id})
+
 @app.post("/api/test-email")
 async def test_email():
     """Manually trigger email polling for testing."""
