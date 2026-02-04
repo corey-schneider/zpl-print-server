@@ -5,7 +5,7 @@ services:
     container_name: zpl-print-api
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "0.0.0.0:8000:8000"
     volumes:
       - ./:/app/workspace
       - ./data:/app/data
@@ -13,8 +13,29 @@ services:
     working_dir: /app/workspace
     cpus: 0.5
     mem_limit: 512M
+    networks:
+      - zpl-network  # Internal network for Cloudflare tunnel
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+
+  cloudflare-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: zpl-cloudflare-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - zpl-network  # Same network as ZPL service
+    depends_on:
+      - zpl-service  # Wait for ZPL service to start
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+networks:
+  zpl-network:
+    driver: bridge
