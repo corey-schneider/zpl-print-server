@@ -18,6 +18,7 @@ class Settings(Base):
     printer_port = Column(Integer, default=9100)
     # Email
     email_enabled = Column(Boolean, default=False)
+    email_polling_enabled = Column(Boolean, default=False)  # User must explicitly enable polling
     imap_server = Column(String, default="imap.mail.yahoo.com")
     email_user = Column(String, default="")
     _email_pass = Column("email_pass", String, default="")  # Encrypted storage

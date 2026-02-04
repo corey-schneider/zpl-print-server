@@ -85,6 +85,7 @@ async def update_settings(
     printer_ip: str = Form(...),
     email_user: str = Form(...),
     email_pass: str = Form(""),
+    email_polling_enabled: bool = Form(False),
     email_filter_from: str = Form(""),
     email_filter_subject: str = Form(""),
     email_filter_body: str = Form(""),
@@ -99,6 +100,8 @@ async def update_settings(
     s.email_user = email_user
     # Always update email password (allows clearing by submitting empty value)
     s.email_pass = email_pass.strip() if email_pass else ""
+    # Email polling toggle
+    s.email_polling_enabled = email_polling_enabled
     # Always update email filters (allows clearing filters or changing them)
     s.email_filter_from = email_filter_from
     s.email_filter_subject = email_filter_subject

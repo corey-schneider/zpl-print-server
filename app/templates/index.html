@@ -112,6 +112,15 @@
                 
                 <!-- Email Tab -->
                 <div id="tab-content-email" class="tab-content p-6 space-y-4 hidden">
+                    <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4">
+                        <div class="flex items-center gap-3">
+                            <input type="checkbox" id="email_polling_enabled" name="email_polling_enabled" value="on" {% if settings.email_polling_enabled %}checked{% endif %} class="w-4 h-4 rounded">
+                            <div>
+                                <label for="email_polling_enabled" class="block text-sm font-semibold text-gray-800 dark:text-gray-200">Enable Email Polling</label>
+                                <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">Check this box to automatically monitor and print eBay shipping labels from email</p>
+                            </div>
+                        </div>
+                    </div>
                     <div>
                         <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Yahoo Email User</label>
                         <input type="email" name="email_user" value="{{ settings.email_user }}" placeholder="your.email@yahoo.com" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3">

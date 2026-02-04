@@ -234,7 +234,12 @@ class EmailPoller:
         settings = db.query(Settings).first()
         db.close()
         
-        if not settings or not settings.email_user or not settings.email_pass:
+        # Check if polling is explicitly enabled
+        if not settings or not settings.email_polling_enabled:
+            logger.debug("Email polling disabled - skipping")
+            return {"status": "skipped", "reason": "Email polling not enabled"}
+        
+        if not settings.email_user or not settings.email_pass:
             logger.debug("Email poller skipped: credentials not configured")
             return {"status": "failed", "reason": "Email credentials not configured"}  # No email config
         
