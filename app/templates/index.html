@@ -277,6 +277,46 @@
             toast.className = 'fixed bottom-6 right-6 bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 text-green-800 dark:text-green-300 px-6 py-4 rounded-lg shadow-lg hidden z-50 max-w-sm';
         }, duration);
     }
+
+    // --- Toggle Field Disabling ---
+    function updateEmailFieldsState() {
+        const emailToggle = document.getElementById('email_polling_enabled');
+        const emailFields = document.querySelectorAll('input[name="email_user"], input[name="email_pass"], input[name="email_filter_from"], input[name="email_filter_subject"], input[name="email_filter_body"], input[name="scan_interval"], button#test-email-btn');
+        emailFields.forEach(field => {
+            field.disabled = !emailToggle.checked;
+            if (!emailToggle.checked) {
+                field.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                field.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        });
+    }
+
+    function updateSmartPlugFieldsState() {
+        const smartPlugToggle = document.getElementById('spe');
+        const smartPlugFields = document.querySelectorAll('input[name="smart_plug_webhook"], input[name="smart_plug_off_webhook"]');
+        smartPlugFields.forEach(field => {
+            field.disabled = !smartPlugToggle.checked;
+            if (!smartPlugToggle.checked) {
+                field.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                field.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        });
+    }
+
+    // Initialize field states on page load and add event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+        updateEmailFieldsState();
+        updateSmartPlugFieldsState();
+        
+        const emailToggle = document.getElementById('email_polling_enabled');
+        const smartPlugToggle = document.getElementById('spe');
+        
+        if (emailToggle) emailToggle.addEventListener('change', updateEmailFieldsState);
+        if (smartPlugToggle) smartPlugToggle.addEventListener('change', updateSmartPlugFieldsState);
+    });
+    
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
         document.documentElement.classList.remove('dark');
     }
