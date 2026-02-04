@@ -47,19 +47,11 @@
         </button>
     </div>
 
-    <div id="drop-zone" class="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-10 text-center mb-6 transition-colors cursor-pointer bg-white dark:bg-gray-800 shadow-sm">
-        <input type="file" id="file-input" class="hidden" accept=".pdf">
+    <div id="drop-zone" class="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-10 text-center mb-8 transition-colors cursor-pointer bg-white dark:bg-gray-800 shadow-sm hover:border-gray-400 dark:hover:border-gray-600">
+        <input type="file" id="file-input" class="hidden" accept=".pdf,.zpl">
         <div class="pointer-events-none">
-            <p class="text-xl font-medium mb-2">Drop PDF Label Here</p>
-            <p class="text-sm text-gray-500">or click to browse</p>
-        </div>
-    </div>
-
-    <div id="drop-zone-zpl" class="border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-2xl p-10 text-center mb-8 transition-colors cursor-pointer bg-blue-50 dark:bg-blue-900/20 shadow-sm">
-        <input type="file" id="file-input-zpl" class="hidden" accept=".zpl">
-        <div class="pointer-events-none">
-            <p class="text-xl font-medium mb-2">Drop ZPL File Here</p>
-            <p class="text-sm text-gray-500">or click to browse - Direct to printer (lossless)</p>
+            <p class="text-xl font-medium mb-2">📄 Drop Label Here</p>
+            <p class="text-sm text-gray-500">PDF or ZPL • or click to browse</p>
         </div>
     </div>
 
@@ -257,10 +249,8 @@
     // --- Drag & Drop ---
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
-    const dropZoneZpl = document.getElementById('drop-zone-zpl');
-    const fileInputZpl = document.getElementById('file-input-zpl');
 
-    // PDF upload handlers
+    // Universal upload handlers (PDF or ZPL)
     dropZone.addEventListener('click', () => fileInput.click());
     dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-active'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-active'));
@@ -270,17 +260,6 @@
         if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0], '/upload');
     });
     fileInput.addEventListener('change', () => { if (fileInput.files.length) uploadFile(fileInput.files[0], '/upload'); });
-
-    // ZPL upload handlers
-    dropZoneZpl.addEventListener('click', () => fileInputZpl.click());
-    dropZoneZpl.addEventListener('dragover', (e) => { e.preventDefault(); dropZoneZpl.classList.add('drag-active'); });
-    dropZoneZpl.addEventListener('dragleave', () => dropZoneZpl.classList.remove('drag-active'));
-    dropZoneZpl.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZoneZpl.classList.remove('drag-active');
-        if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0], '/upload-zpl');
-    });
-    fileInputZpl.addEventListener('change', () => { if (fileInputZpl.files.length) uploadFile(fileInputZpl.files[0], '/upload-zpl'); });
 
     async function uploadFile(file, endpoint) {
         const formData = new FormData();

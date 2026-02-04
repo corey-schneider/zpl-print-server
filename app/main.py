@@ -39,66 +39,64 @@ async def home(request: Request):
         "is_first_run": IS_FIRST_RUN
     })
 
+def _detect_file_type(filename: str, content: bytes) -> str:
+    """Detect if file is PDF or ZPL based on extension and content."""
+    ext = filename.lower().split('.')[-1] if '.' in filename else ''
+    
+    # Check extension first (most reliable)
+    if ext == 'pdf':
+        return 'pdf'
+    if ext == 'zpl':
+        return 'zpl'
+    
+    # Fallback: check first byte
+    if content.startswith(b'%PDF'):
+        return 'pdf'
+    if content.startswith(b'^') or content.startswith(b'%'):
+        return 'zpl'
+    
+    # Default to PDF if unsure
+    return 'pdf'
+
 @app.post("/upload")
-async def manual_upload(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
+async def upload_file(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
+    """Universal upload endpoint - auto-detects PDF or ZPL and routes accordingly."""
     content = await file.read()
+    file_type = _detect_file_type(file.filename, content)
     db = SessionLocal()
     
-    job = Job(filename=file.filename, source="Manual UI Upload", status="READY")
+    # Determine source based on file type
+    if file_type == 'zpl':
+        source = "ZPL Direct Upload"
+    else:
+        source = "Manual UI Upload"
+    
+    job = Job(filename=file.filename, source=source, status="READY")
     db.add(job)
     db.commit()
     db.refresh(job)
     job_id = job.id
 
     try:
-        # Store PDF
-        pdf_path = os.path.join(DATA_DIR, f"{job_id}.pdf")
-        with open(pdf_path, "wb") as f:
-            f.write(content)
-
-        # Pre-generate ZPL as fallback (in case PDF passthrough fails)
-        converter = LabelConverter()
-        zpl_content = converter.convert_pdf_to_zpl(content, job_id=job_id)
-        zpl_path = os.path.join(DATA_DIR, f"{job_id}.zpl")
-        with open(zpl_path, "w") as f:
-            f.write(zpl_content)
-
-        job.log = "Ready - will try PDF first, then ZPL fallback"
-        db.commit()
-
-        # Start printing in background
-        if background_tasks:
-            mgr = PrinterManager()
-            background_tasks.add_task(mgr.run_job, job_id)
+        if file_type == 'zpl':
+            # ZPL: Store directly as binary (lossless)
+            zpl_path = os.path.join(DATA_DIR, f"{job_id}.zpl")
+            with open(zpl_path, "wb") as f:
+                f.write(content)
+            job.log = "Ready - ZPL direct upload (no conversion)"
+        else:
+            # PDF: Store PDF and generate ZPL conversion
+            pdf_path = os.path.join(DATA_DIR, f"{job_id}.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(content)
             
-    except Exception as e:
-        job.status = "FAILED"
-        job.log = f"Error: {str(e)}"
-        db.commit()
-    finally:
-        db.close()
-
-    return JSONResponse({"status": "accepted", "job_id": job_id})
-
-@app.post("/upload-zpl")
-async def upload_zpl(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
-    """Upload ZPL file directly - send losslessly to printer without conversion."""
-    content = await file.read()
-    db = SessionLocal()
-    
-    job = Job(filename=file.filename, source="ZPL Direct Upload", status="READY")
-    db.add(job)
-    db.commit()
-    db.refresh(job)
-    job_id = job.id
-
-    try:
-        # Store ZPL directly as-is (lossless)
-        zpl_path = os.path.join(DATA_DIR, f"{job_id}.zpl")
-        with open(zpl_path, "wb") as f:
-            f.write(content)
-
-        job.log = "Ready - ZPL direct upload (no conversion)"
+            converter = LabelConverter()
+            zpl_content = converter.convert_pdf_to_zpl(content, job_id=job_id)
+            zpl_path = os.path.join(DATA_DIR, f"{job_id}.zpl")
+            with open(zpl_path, "w") as f:
+                f.write(zpl_content)
+            job.log = "Ready - will try PDF first, then ZPL fallback"
+        
         db.commit()
 
         # Start printing in background
