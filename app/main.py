@@ -7,7 +7,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from app.database import init_db, SessionLocal, Settings, Job
 from app.services import EmailPoller, PrinterManager, LabelConverter
-from app.ebay_service import EBayAPI
 from app.encryption import IS_FIRST_RUN
 
 DATA_DIR = "/app/data"
@@ -92,12 +91,7 @@ async def update_settings(
     scan_interval: int = Form(60),
     smart_plug_enabled: bool = Form(False),
     smart_plug_webhook: str = Form(""),
-    smart_plug_off_webhook: str = Form(""),
-    ebay_enabled: bool = Form(False),
-    ebay_app_id: str = Form(""),
-    ebay_cert_id: str = Form(""),
-    ebay_user_token: str = Form(""),
-    ebay_refresh_token: str = Form("")
+    smart_plug_off_webhook: str = Form("")
 ):
     db = SessionLocal()
     s = db.query(Settings).first()
@@ -114,16 +108,6 @@ async def update_settings(
     s.smart_plug_enabled = smart_plug_enabled
     s.smart_plug_webhook = smart_plug_webhook
     s.smart_plug_off_webhook = smart_plug_off_webhook
-    # eBay API settings
-    s.ebay_enabled = ebay_enabled
-    if ebay_app_id.strip():
-        s.ebay_app_id = ebay_app_id
-    if ebay_cert_id.strip():
-        s.ebay_cert_id = ebay_cert_id
-    if ebay_user_token.strip():
-        s.ebay_user_token = ebay_user_token
-    if ebay_refresh_token.strip():
-        s.ebay_refresh_token = ebay_refresh_token
     db.commit()
     db.close()
     return JSONResponse({"status": "saved"})
@@ -211,86 +195,3 @@ async def get_printer_status():
             "message": f"❌ Could not reach printer at {settings.printer_ip}:{mgr.printer_port}",
             "ip": settings.printer_ip
         })
-
-@app.post("/api/test-ebay")
-async def test_ebay():
-    """Test eBay API connection with stored credentials."""
-    db = SessionLocal()
-    settings = db.query(Settings).first()
-    db.close()
-    
-    if not settings or not settings.ebay_app_id or not settings.ebay_cert_id or not settings.ebay_user_token:
-        return JSONResponse({
-            "status": "not_configured",
-            "message": "eBay credentials not configured"
-        })
-    
-    try:
-        ebay = EBayAPI(
-            app_id=settings.ebay_app_id,
-            cert_id=settings.ebay_cert_id,
-            user_token=settings.ebay_user_token,
-            refresh_token=settings.ebay_refresh_token
-        )
-        result = await ebay.test_connection()
-        return JSONResponse(result)
-    except Exception as e:
-        return JSONResponse({
-            "status": "error",
-            "message": f"❌ Test failed: {str(e)}"
-        })
-
-@app.post("/api/fetch-ebay-labels")
-async def fetch_ebay_labels(background_tasks: BackgroundTasks = None):
-    """
-    Fetch recently purchased shipping labels from eBay.
-    Can be called manually or via webhook from eBay.
-    """
-    db = SessionLocal()
-    settings = db.query(Settings).first()
-    db.close()
-    
-    if not settings or not settings.ebay_enabled:
-        return JSONResponse({
-            "status": "error",
-            "message": "eBay API not enabled"
-        })
-    
-    try:
-        ebay = EBayAPI(
-            app_id=settings.ebay_app_id,
-            cert_id=settings.ebay_cert_id,
-            user_token=settings.ebay_user_token,
-            refresh_token=settings.ebay_refresh_token
-        )
-        
-        # Fetch labels from past 30 minutes
-        labels = await ebay.fetch_recent_labels(minutes=30)
-        
-        if not labels:
-            return JSONResponse({
-                "status": "no_labels",
-                "message": "No new labels found in the past 30 minutes"
-            })
-        
-        # Save labels in background
-        for label in labels:
-            if background_tasks:
-                background_tasks.add_task(
-                    ebay.fetch_and_save_label,
-                    label["order_id"],
-                    label
-                )
-        
-        return JSONResponse({
-            "status": "success",
-            "message": f"Found {len(labels)} label(s), fetching in background...",
-            "count": len(labels)
-        })
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JSONResponse({
-            "status": "error",
-            "message": f"Failed to fetch labels: {str(e)}"
-        }, status_code=500)

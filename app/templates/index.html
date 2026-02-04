@@ -89,7 +89,6 @@
             <div class="flex border-b border-gray-200 dark:border-gray-700 px-6">
                 <button onclick="switchTab('printer')" id="tab-printer" class="tab-btn px-4 py-3 font-medium text-sm border-b-2 border-blue-600 text-blue-600">🖨️ Printer</button>
                 <button onclick="switchTab('email')" id="tab-email" class="tab-btn px-4 py-3 font-medium text-sm text-gray-600 dark:text-gray-400">📧 Email</button>
-                <button onclick="switchTab('ebay')" id="tab-ebay" class="tab-btn px-4 py-3 font-medium text-sm text-gray-600 dark:text-gray-400">🛍️ eBay API</button>
                 <button onclick="switchTab('smartplug')" id="tab-smartplug" class="tab-btn px-4 py-3 font-medium text-sm text-gray-600 dark:text-gray-400">⚡ Smart Plug</button>
             </div>
             
@@ -172,60 +171,6 @@
                             🔍 Test Email Connection
                         </button>
                         <div id="test-email-result" class="mt-3 hidden p-3 rounded-lg text-xs"></div>
-                    </div>
-                </div>
-                
-                <!-- eBay API Tab -->
-                <div id="tab-content-ebay" class="tab-content p-6 space-y-4 hidden">
-                    <div class="flex items-center gap-3 mb-4">
-                        <input type="checkbox" name="ebay_enabled" id="ebay_enabled" {% if settings.ebay_enabled %}checked{% endif %} class="w-5 h-5 rounded text-blue-600">
-                        <label for="ebay_enabled" class="text-sm font-medium">Enable eBay API Integration</label>
-                    </div>
-                    
-                    <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
-                        <p class="text-xs text-blue-900 dark:text-blue-200 leading-relaxed">
-                            <strong>How it works:</strong> Purchase a shipping label on eBay's website. Then click "Fetch eBay Labels" to download the PDF and ZPL files directly from eBay's API. No email processing needed!
-                        </p>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">App ID</label>
-                        <input type="password" name="ebay_app_id" value="{{ settings.ebay_app_id if settings.ebay_app_id else '' }}" placeholder="Your eBay Application ID" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">From <a href="https://developer.ebay.com/my/keys" target="_blank" class="text-blue-500 hover:underline">eBay Developer Keys</a></p>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Cert ID</label>
-                        <input type="password" name="ebay_cert_id" value="{{ settings.ebay_cert_id if settings.ebay_cert_id else '' }}" placeholder="Your eBay Cert ID" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">OAuth Signature Certificate</p>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">User Token</label>
-                        <input type="password" name="ebay_user_token" value="{{ settings.ebay_user_token if settings.ebay_user_token else '' }}" placeholder="Your eBay User Auth Token" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">OAuth or Traditional User Token</p>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Refresh Token (Optional)</label>
-                        <input type="password" name="ebay_refresh_token" value="{{ settings.ebay_refresh_token if settings.ebay_refresh_token else '' }}" placeholder="Optional OAuth Refresh Token" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">For OAuth flow, leave blank for traditional tokens</p>
-                    </div>
-                    
-                    <div class="border-t border-gray-300 dark:border-gray-600 pt-4">
-                        <p class="text-xs font-bold uppercase text-gray-500 mb-3">Test Configuration</p>
-                        <button type="button" id="test-ebay-btn" onclick="testEbayConfig()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-                            🔍 Test eBay Connection
-                        </button>
-                        <div id="test-ebay-result" class="mt-3 hidden p-3 rounded-lg text-xs"></div>
-                    </div>
-                    
-                    <div class="border-t border-gray-300 dark:border-gray-600 pt-4">
-                        <p class="text-xs font-bold uppercase text-gray-500 mb-3">Fetch Labels</p>
-                        <button type="button" id="fetch-ebay-btn" onclick="fetchEbayLabels()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-                            ⬇️ Fetch eBay Labels Now
-                        </button>
-                        <div id="fetch-ebay-result" class="mt-3 hidden p-3 rounded-lg text-xs"></div>
                     </div>
                 </div>
                 
@@ -473,74 +418,6 @@
         } finally {
             btn.disabled = false;
             btn.textContent = '🔍 Test Email Connection';
-        }
-    }
-
-    async function testEbayConfig() {
-        const btn = document.getElementById('test-ebay-btn');
-        const resultDiv = document.getElementById('test-ebay-result');
-        
-        btn.disabled = true;
-        btn.textContent = '⏳ Testing...';
-        resultDiv.classList.add('hidden');
-        
-        try {
-            const response = await fetch('/api/test-ebay', { method: 'POST' });
-            const data = await response.json();
-            
-            resultDiv.classList.remove('hidden');
-            
-            if (data.status === 'connected') {
-                resultDiv.className = 'mt-3 p-3 rounded-lg text-xs bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-900 dark:text-green-200';
-                resultDiv.innerHTML = `<strong>✅ Connected!</strong> eBay API is properly configured. ${data.message}`;
-            } else if (data.status === 'auth_failed') {
-                resultDiv.className = 'mt-3 p-3 rounded-lg text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200';
-                resultDiv.innerHTML = `<strong>❌ Auth Failed</strong> ${data.message}`;
-            } else {
-                resultDiv.className = 'mt-3 p-3 rounded-lg text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200';
-                resultDiv.innerHTML = `<strong>❌ Error:</strong> ${data.message}`;
-            }
-        } catch (err) {
-            resultDiv.classList.remove('hidden');
-            resultDiv.className = 'mt-3 p-3 rounded-lg text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200';
-            resultDiv.innerHTML = `<strong>❌ Network Error:</strong> ${err.message}`;
-        } finally {
-            btn.disabled = false;
-            btn.textContent = '🔍 Test eBay Connection';
-        }
-    }
-
-    async function fetchEbayLabels() {
-        const btn = document.getElementById('fetch-ebay-btn');
-        const resultDiv = document.getElementById('fetch-ebay-result');
-        
-        btn.disabled = true;
-        btn.textContent = '⏳ Fetching...';
-        resultDiv.classList.add('hidden');
-        
-        try {
-            const response = await fetch('/api/fetch-ebay-labels', { method: 'POST' });
-            const data = await response.json();
-            
-            resultDiv.classList.remove('hidden');
-            
-            if (data.status === 'success') {
-                resultDiv.className = 'mt-3 p-3 rounded-lg text-xs bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-900 dark:text-green-200';
-                resultDiv.innerHTML = `<strong>✅ Success!</strong> ${data.message}`;
-            } else if (data.status === 'no_labels') {
-                resultDiv.className = 'mt-3 p-3 rounded-lg text-xs bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-900 dark:text-yellow-200';
-                resultDiv.innerHTML = `<strong>⚠️ No Labels Found</strong> ${data.message}`;
-            } else {
-                resultDiv.className = 'mt-3 p-3 rounded-lg text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200';
-                resultDiv.innerHTML = `<strong>❌ Error:</strong> ${data.message}`;
-            }
-        } catch (err) {
-            resultDiv.classList.remove('hidden');
-            resultDiv.className = 'mt-3 p-3 rounded-lg text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200';
-            resultDiv.innerHTML = `<strong>❌ Network Error:</strong> ${err.message}`;
-        } finally {
-            btn.disabled = false;
-            btn.textContent = '⬇️ Fetch eBay Labels Now';
         }
     }
 
