@@ -115,21 +115,22 @@ async def upload_file(file: UploadFile = File(...), background_tasks: Background
 
 @app.post("/settings")
 async def update_settings(
-    printer_ip: str = Form(...),
+    printer_ip: str = Form(""),
     email_user: str = Form(""),
     email_pass: str = Form(""),
     email_polling_enabled: bool = Form(False),
     email_filter_from: str = Form(""),
     email_filter_subject: str = Form(""),
     email_filter_body: str = Form(""),
-    scan_interval: int = Form(60),
+    scan_interval: str = Form("60"),
     smart_plug_enabled: bool = Form(False),
     smart_plug_webhook: str = Form(""),
     smart_plug_off_webhook: str = Form("")
 ):
     db = SessionLocal()
     s = db.query(Settings).first()
-    s.printer_ip = printer_ip
+    if printer_ip:
+        s.printer_ip = printer_ip
     s.email_user = email_user
     # Always update email password (allows clearing by submitting empty value)
     s.email_pass = email_pass.strip() if email_pass else ""
@@ -139,8 +140,13 @@ async def update_settings(
     s.email_filter_from = email_filter_from
     s.email_filter_subject = email_filter_subject
     s.email_filter_body = email_filter_body
-    if scan_interval and scan_interval >= 10: # Only update if provided and valid
-        s.scan_interval = scan_interval
+    # Handle scan_interval as string and convert safely
+    try:
+        interval = int(scan_interval) if scan_interval else 60
+        if interval >= 10:
+            s.scan_interval = interval
+    except (ValueError, TypeError):
+        pass  # Keep existing value if invalid
     s.smart_plug_enabled = smart_plug_enabled
     s.smart_plug_webhook = smart_plug_webhook
     s.smart_plug_off_webhook = smart_plug_off_webhook
