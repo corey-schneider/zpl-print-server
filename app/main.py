@@ -1,7 +1,5 @@
 import asyncio
 import os
-import json
-import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Form, Request, BackgroundTasks, HTTPException
 from fastapi.templating import Jinja2Templates
@@ -10,10 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from app.database import init_db, SessionLocal, Settings, Job
 from app.services import EmailPoller, PrinterManager, LabelConverter
 from app.ebay_service import EBayAPI
-from app.webhook_service import WebhookVerifier, WebhookVerificationError
 from app.encryption import IS_FIRST_RUN
-
-logger = logging.getLogger(__name__)
 
 DATA_DIR = "/app/data"
 
@@ -102,9 +97,7 @@ async def update_settings(
     ebay_app_id: str = Form(""),
     ebay_cert_id: str = Form(""),
     ebay_user_token: str = Form(""),
-    ebay_refresh_token: str = Form(""),
-    ebay_webhook_enabled: bool = Form(False),
-    ebay_webhook_url: str = Form("")
+    ebay_refresh_token: str = Form("")
 ):
     db = SessionLocal()
     s = db.query(Settings).first()
@@ -131,10 +124,6 @@ async def update_settings(
         s.ebay_user_token = ebay_user_token
     if ebay_refresh_token.strip():
         s.ebay_refresh_token = ebay_refresh_token
-    # eBay Webhook settings
-    s.ebay_webhook_enabled = ebay_webhook_enabled
-    if ebay_webhook_url.strip():
-        s.ebay_webhook_url = ebay_webhook_url
     db.commit()
     db.close()
     return JSONResponse({"status": "saved"})
@@ -304,214 +293,4 @@ async def fetch_ebay_labels(background_tasks: BackgroundTasks = None):
         return JSONResponse({
             "status": "error",
             "message": f"Failed to fetch labels: {str(e)}"
-        }, status_code=500)
-# --- eBay WEBHOOK INTEGRATION ---
-
-async def process_webhook_label(order_id: str, shipment_id: str, event_id: str):
-    """
-    Background task: Fetch label from eBay and create print job.
-    This is called immediately when webhook is received.
-    """
-    try:
-        db = SessionLocal()
-        settings = db.query(Settings).first()
-        db.close()
-        
-        if not settings or not settings.ebay_enabled:
-            raise Exception("eBay API not enabled")
-        
-        ebay = EBayAPI(
-            app_id=settings.ebay_app_id,
-            cert_id=settings.ebay_cert_id,
-            user_token=settings.ebay_user_token,
-            refresh_token=settings.ebay_refresh_token
-        )
-        
-        # Fetch the specific label
-        labels = await ebay.fetch_recent_labels(minutes=5)
-        label = next((l for l in labels if l["order_id"] == order_id), None)
-        
-        if label:
-            job = await ebay.fetch_and_save_label(order_id, label)
-            WebhookVerifier.update_webhook_event(
-                event_id,
-                status="COMPLETED",
-                job_id=job.id if job else None
-            )
-            logger.info(f"Webhook: Created job {job.id if job else 'N/A'} for order {order_id}")
-        else:
-            raise Exception(f"Label not found for order {order_id}")
-            
-    except Exception as e:
-        logger.error(f"Webhook processing error for {order_id}: {e}")
-        WebhookVerifier.update_webhook_event(
-            event_id,
-            status="FAILED",
-            error_message=str(e)
-        )
-
-
-@app.post("/webhooks/ebay")
-async def handle_ebay_webhook(request: Request, background_tasks: BackgroundTasks):
-    """
-    eBay webhook endpoint - Handles label purchase notifications.
-    
-    Security:
-    - HMAC-SHA256 signature verification
-    - Timestamp validation (prevents replay attacks)
-    - Idempotency check (prevents duplicate processing)
-    - Returns 200 immediately, processes in background
-    
-    Reference:
-    https://developer.ebay.com/api-docs/user-defined-subscriptions/webhooks
-    """
-    try:
-        # Get settings and webhook secret
-        db = SessionLocal()
-        settings = db.query(Settings).first()
-        db.close()
-        
-        if not settings or not settings.ebay_webhook_enabled:
-            logger.warning("Webhook received but not enabled")
-            return JSONResponse({"status": "disabled"}, status_code=204)
-        
-        if not settings.ebay_webhook_secret:
-            logger.error("Webhook secret not configured")
-            return JSONResponse({"status": "error", "message": "Webhook not configured"}, status_code=400)
-        
-        # Get headers
-        x_ebay_signature = request.headers.get("X-EBAY-SIGNATURE", "")
-        x_ebay_timestamp = request.headers.get("X-EBAY-DELIVERY-TIMESTAMP", "")
-        
-        if not x_ebay_signature or not x_ebay_timestamp:
-            logger.warning("Missing webhook headers")
-            return JSONResponse({"status": "error", "message": "Missing headers"}, status_code=400)
-        
-        # Get raw request body
-        body = await request.body()
-        
-        # 1. Verify HMAC-SHA256 signature
-        if not WebhookVerifier.verify_signature(
-            settings.ebay_webhook_secret,
-            body.decode('utf-8'),
-            x_ebay_signature
-        ):
-            logger.error("Webhook signature verification failed")
-            return JSONResponse({"status": "error", "message": "Signature verification failed"}, status_code=401)
-        
-        # 2. Verify timestamp (prevents replay attacks)
-        if not WebhookVerifier.verify_timestamp(x_ebay_timestamp):
-            logger.warning(f"Webhook timestamp validation failed: {x_ebay_timestamp}")
-            return JSONResponse({"status": "error", "message": "Timestamp too old"}, status_code=400)
-        
-        # 3. Parse payload
-        try:
-            payload = json.loads(body.decode('utf-8'))
-        except json.JSONDecodeError:
-            logger.error("Failed to parse webhook JSON")
-            return JSONResponse({"status": "error", "message": "Invalid JSON"}, status_code=400)
-        
-        # 4. Extract event information
-        try:
-            event_id, event_type, order_id, shipment_id = WebhookVerifier.parse_ebay_webhook(payload)
-        except ValueError as e:
-            logger.warning(f"Failed to parse webhook: {e}")
-            return JSONResponse({"status": "error", "message": str(e)}, status_code=400)
-        
-        # 5. Check idempotency (prevent duplicate processing)
-        is_new, existing_job_id = WebhookVerifier.check_idempotency(event_id)
-        if not is_new:
-            logger.info(f"Duplicate webhook detected: {event_id}")
-            # Return 200 immediately even for duplicates (eBay expects this)
-            return JSONResponse({"status": "success", "message": "Already processed"})
-        
-        # 6. Record webhook event
-        WebhookVerifier.record_webhook_event(
-            event_id=event_id,
-            event_type=event_type,
-            order_id=order_id,
-            shipment_id=shipment_id,
-            payload=payload,
-            status="PROCESSING"
-        )
-        
-        logger.info(f"Valid webhook received: {event_type} for order {order_id}")
-        
-        # 7. Queue background task to fetch label and print
-        background_tasks.add_task(
-            process_webhook_label,
-            order_id,
-            shipment_id,
-            event_id
-        )
-        
-        # Return 200 immediately - eBay expects fast response
-        return JSONResponse({"status": "success", "message": "Webhook queued for processing"})
-        
-    except Exception as e:
-        logger.error(f"Webhook error: {e}", exc_info=True)
-        return JSONResponse({"status": "error", "message": "Internal server error"}, status_code=500)
-
-
-@app.post("/api/generate-webhook-secret")
-async def generate_webhook_secret():
-    """Generate a new eBay webhook secret and return it."""
-    try:
-        db = SessionLocal()
-        settings = db.query(Settings).first()
-        
-        if not settings:
-            db.close()
-            return JSONResponse({"status": "error", "message": "Settings not found"}, status_code=400)
-        
-        # Generate new secret (256-bit = 32 bytes)
-        secret = settings.generate_webhook_secret()
-        db.commit()
-        db.close()
-        
-        logger.info("New webhook secret generated")
-        
-        return JSONResponse({
-            "status": "success",
-            "message": "New webhook secret generated",
-            "secret": secret
-        })
-    except Exception as e:
-        logger.error(f"Failed to generate webhook secret: {e}")
-        return JSONResponse({
-            "status": "error",
-            "message": str(e)
-        }, status_code=500)
-
-
-@app.get("/api/webhook-events")
-async def get_webhook_events(limit: int = 20):
-    """Get recent webhook events for debugging."""
-    try:
-        db = SessionLocal()
-        from app.database import WebhookEvent
-        
-        events = db.query(WebhookEvent).order_by(
-            WebhookEvent.received_at.desc()
-        ).limit(limit).all()
-        
-        data = [{
-            "id": e.id,
-            "event_id": e.event_id,
-            "event_type": e.event_type,
-            "order_id": e.order_id,
-            "status": e.status,
-            "received_at": e.received_at.isoformat(),
-            "processed_at": e.processed_at.isoformat() if e.processed_at else None,
-            "job_id": e.job_id,
-            "error": e.error_message
-        } for e in events]
-        
-        db.close()
-        return data
-    except Exception as e:
-        logger.error(f"Failed to get webhook events: {e}")
-        return JSONResponse({
-            "status": "error",
-            "message": str(e)
         }, status_code=500)
