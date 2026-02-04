@@ -123,11 +123,14 @@ async def update_settings(
     s.smart_plug_off_webhook = smart_plug_off_webhook
     # eBay API settings
     s.ebay_enabled = ebay_enabled
-    # Always update eBay credentials (allows clearing by submitting empty values)
-    s.ebay_app_id = ebay_app_id.strip() if ebay_app_id else ""
-    s.ebay_cert_id = ebay_cert_id.strip() if ebay_cert_id else ""
-    s.ebay_user_token = ebay_user_token.strip() if ebay_user_token else ""
-    s.ebay_refresh_token = ebay_refresh_token.strip() if ebay_refresh_token else ""
+    if ebay_app_id.strip():
+        s.ebay_app_id = ebay_app_id
+    if ebay_cert_id.strip():
+        s.ebay_cert_id = ebay_cert_id
+    if ebay_user_token.strip():
+        s.ebay_user_token = ebay_user_token
+    if ebay_refresh_token.strip():
+        s.ebay_refresh_token = ebay_refresh_token
     # eBay Webhook settings
     s.ebay_webhook_enabled = ebay_webhook_enabled
     if ebay_webhook_url.strip():
@@ -512,143 +515,3 @@ async def get_webhook_events(limit: int = 20):
             "status": "error",
             "message": str(e)
         }, status_code=500)
-# --- OAuth ROUTES ---
-
-@app.get("/auth/ebay/request")
-async def ebay_oauth_request(request: Request):
-    """Initiate eBay OAuth flow."""
-    db = SessionLocal()
-    settings = db.query(Settings).first()
-    db.close()
-    
-    if not settings or not settings.ebay_app_id:
-        return JSONResponse({
-            "error": "eBay App ID not configured"
-        }, status_code=400)
-    
-    # eBay OAuth authorization URL (sandbox)
-    auth_url = "https://auth.sandbox.ebay.com/oauth2/authorize"
-    params = {
-        "client_id": settings.ebay_app_id,
-        "response_type": "code",
-        "redirect_uri": f"http://{request.headers.get('host')}/auth/ebay/callback",
-        "scope": "https://api.ebay.com/oauth/api_scope/sell.fulfillment https://api.ebay.com/oauth/api_scope/sell.logistics"
-    }
-    
-    from urllib.parse import urlencode
-    redirect = f"{auth_url}?{urlencode(params)}"
-    
-    return JSONResponse({
-        "redirect_url": redirect
-    })
-
-@app.get("/auth/ebay/callback")
-async def ebay_oauth_callback(request: Request, code: str = None, error: str = None):
-    """Handle eBay OAuth callback."""
-    if error:
-        return JSONResponse({
-            "error": f"OAuth error: {error}",
-            "html": f"<h2>Authorization Failed</h2><p>{error}</p><a href='/'>Back to Settings</a>"
-        }, status_code=400)
-    
-    if not code:
-        return JSONResponse({
-            "error": "No authorization code received",
-            "html": "<h2>Authorization Failed</h2><p>No authorization code received from eBay</p><a href='/'>Back to Settings</a>"
-        }, status_code=400)
-    
-    try:
-        db = SessionLocal()
-        settings = db.query(Settings).first()
-        
-        if not settings:
-            db.close()
-            logger.error("No settings found in database")
-            return JSONResponse({
-                "error": "Settings not configured"
-            }, status_code=400)
-        
-        app_id = settings.ebay_app_id
-        cert_id = settings.ebay_cert_id
-        
-        logger.info(f"OAuth callback - app_id set: {bool(app_id)}, cert_id set: {bool(cert_id)}")
-        
-        if not app_id or not cert_id:
-            db.close()
-            logger.error(f"eBay credentials not configured - app_id: {bool(app_id)}, cert_id: {bool(cert_id)}")
-            return JSONResponse({
-                "error": "eBay credentials not configured"
-            }, status_code=400)
-        
-        # Exchange auth code for tokens
-        # Use the request host to properly handle both localhost and Cloudflare tunnel URLs
-        host = request.headers.get('host', 'localhost:8000')
-        scheme = request.headers.get('x-forwarded-proto', 'http')
-        redirect_uri = f"{scheme}://{host}/auth/ebay/callback"
-        
-        logger.info(f"Exchanging auth code with redirect_uri: {redirect_uri}")
-        
-        result = await EBayAPI.exchange_authorization_code(
-            app_id,
-            cert_id,
-            code,
-            redirect_uri
-        )
-        
-        if result["success"]:
-            # Save tokens to database
-            settings.ebay_user_token = result["access_token"]
-            settings.ebay_refresh_token = result["refresh_token"]
-            db.commit()
-            db.close()
-            
-            return HTMLResponse("""
-            <html>
-            <head><title>eBay Authorization Successful</title></head>
-            <body style="font-family: Arial; text-align: center; padding: 50px;">
-                <h2>✅ eBay Authorization Successful</h2>
-                <p>Your eBay account has been connected!</p>
-                <p>Tokens have been saved automatically.</p>
-                <br>
-                <a href="/" style="padding: 10px 20px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 5px;">
-                    Back to Settings
-                </a>
-                <script>
-                    // Auto-redirect after 2 seconds
-                    setTimeout(() => { window.location.href = '/'; }, 2000);
-                </script>
-            </body>
-            </html>
-            """)
-        else:
-            db.close()
-            error_msg = result.get("error", "Unknown error")
-            return HTMLResponse(f"""
-            <html>
-            <head><title>eBay Authorization Failed</title></head>
-            <body style="font-family: Arial; text-align: center; padding: 50px;">
-                <h2>❌ eBay Authorization Failed</h2>
-                <p>{error_msg}</p>
-                <br>
-                <a href="/" style="padding: 10px 20px; background-color: #dc2626; color: white; text-decoration: none; border-radius: 5px;">
-                    Back to Settings
-                </a>
-            </body>
-            </html>
-            """)
-    
-    except Exception as e:
-        logger.error(f"OAuth callback error: {e}")
-        return HTMLResponse(f"""
-        <html>
-        <head><title>Error</title></head>
-        <body style="font-family: Arial; text-align: center; padding: 50px;">
-            <h2>❌ Error</h2>
-            <p>{str(e)}</p>
-            <br>
-            <a href="/" style="padding: 10px 20px; background-color: #dc2626; color: white; text-decoration: none; border-radius: 5px;">
-                Back to Settings
-            </a>
-        </body>
-        </html>
-        """)

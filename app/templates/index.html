@@ -189,49 +189,27 @@
                         </p>
                     </div>
                     
-                    <!-- OAuth Authorization Section -->
-                    <div class="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4 mb-4">
-                        <p class="text-xs font-bold uppercase text-purple-900 dark:text-purple-200 mb-3">🔐 OAuth Authorization (Recommended)</p>
-                        <p class="text-xs text-purple-900 dark:text-purple-200 mb-3">
-                            <strong>Step 1:</strong> Enter your eBay Sandbox App ID and Cert ID below (see "Manual Credentials" section)<br>
-                            <strong>Step 2:</strong> Click "Save Settings"<br>
-                            <strong>Step 3:</strong> Click the button below to authorize - you'll be redirected to eBay to grant permission
-                        </p>
-                        <button type="button" onclick="authorizeWithEbay()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-                            🔗 Authorize with eBay
-                        </button>
-                        <div id="oauth-result" class="mt-2 hidden p-2 rounded-lg text-xs"></div>
-                    </div>
-                    
-                    <!-- Manual Credentials Section -->
-                    <div class="border-t border-gray-300 dark:border-gray-600 pt-4">
-                        <p class="text-xs font-bold uppercase text-gray-500 mb-3">📋 Manual Credentials (Alternative)</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                            Or enter your eBay credentials manually. OAuth is recommended for automatic token refresh.
-                        </p>
-                    </div>
-                    
                     <div>
                         <label class="block text-xs font-bold uppercase text-gray-500 mb-1">App ID</label>
-                        <input type="text" name="ebay_app_id" value="{{ settings.ebay_app_id if settings.ebay_app_id else '' }}" placeholder="Your eBay Application ID" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
+                        <input type="password" name="ebay_app_id" value="{{ settings.ebay_app_id if settings.ebay_app_id else '' }}" placeholder="Your eBay Application ID" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">From <a href="https://developer.ebay.com/my/keys" target="_blank" class="text-blue-500 hover:underline">eBay Developer Keys</a></p>
                     </div>
                     
                     <div>
                         <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Cert ID</label>
-                        <input type="text" name="ebay_cert_id" value="{{ settings.ebay_cert_id if settings.ebay_cert_id else '' }}" placeholder="Your eBay Cert ID" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
+                        <input type="password" name="ebay_cert_id" value="{{ settings.ebay_cert_id if settings.ebay_cert_id else '' }}" placeholder="Your eBay Cert ID" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">OAuth Signature Certificate</p>
                     </div>
                     
                     <div>
                         <label class="block text-xs font-bold uppercase text-gray-500 mb-1">User Token</label>
-                        <input type="text" name="ebay_user_token" value="{{ settings.ebay_user_token if settings.ebay_user_token else '' }}" placeholder="Your eBay User Auth Token" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
+                        <input type="password" name="ebay_user_token" value="{{ settings.ebay_user_token if settings.ebay_user_token else '' }}" placeholder="Your eBay User Auth Token" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">OAuth or Traditional User Token</p>
                     </div>
                     
                     <div>
                         <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Refresh Token (Optional)</label>
-                        <input type="text" name="ebay_refresh_token" value="{{ settings.ebay_refresh_token if settings.ebay_refresh_token else '' }}" placeholder="Optional OAuth Refresh Token" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
+                        <input type="password" name="ebay_refresh_token" value="{{ settings.ebay_refresh_token if settings.ebay_refresh_token else '' }}" placeholder="Optional OAuth Refresh Token" class="w-full bg-gray-100 dark:bg-gray-900 border-none rounded-lg p-3 text-sm">
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">For OAuth flow, leave blank for traditional tokens</p>
                     </div>
                     
@@ -563,35 +541,6 @@
         }
     }
 
-    async function authorizeWithEbay() {
-        const resultDiv = document.getElementById('oauth-result');
-        
-        try {
-            // First, get the redirect URL
-            const response = await fetch('/auth/ebay/request');
-            const data = await response.json();
-            
-            if (data.error) {
-                resultDiv.classList.remove('hidden');
-                resultDiv.className = 'mt-2 p-2 rounded-lg text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200';
-                resultDiv.innerHTML = `<strong>❌ Error:</strong> ${data.error}`;
-                return;
-            }
-            
-            // Show loading message
-            resultDiv.classList.remove('hidden');
-            resultDiv.className = 'mt-2 p-2 rounded-lg text-xs bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200';
-            resultDiv.innerHTML = '<strong>🔄 Redirecting to eBay...</strong> You will be prompted to authorize.';
-            
-            // Redirect to eBay authorization URL
-            window.location.href = data.redirect_url;
-        } catch (err) {
-            resultDiv.classList.remove('hidden');
-            resultDiv.className = 'mt-2 p-2 rounded-lg text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200';
-            resultDiv.innerHTML = `<strong>❌ Error:</strong> ${err.message}`;
-        }
-    }
-
     async function testEbayConfig() {
         const btn = document.getElementById('test-ebay-btn');
         const resultDiv = document.getElementById('test-ebay-result');
@@ -830,24 +779,9 @@
     async function saveSettings(e) {
         e.preventDefault();
         const formData = new FormData(e.target);
-        
-        try {
-            const response = await fetch('/settings', { method: 'POST', body: formData });
-            const result = await response.json();
-            
-            if (response.ok) {
-                // Reload page to show saved values
-                setTimeout(() => {
-                    window.location.reload();
-                }, 500);
-                alert('✅ Settings Saved Successfully!');
-            } else {
-                alert(`❌ Save failed: ${result.detail || 'Unknown error'}`);
-            }
-        } catch (error) {
-            alert(`❌ Error saving settings: ${error.message}`);
-            console.error('Settings save error:', error);
-        }
+        await fetch('/settings', { method: 'POST', body: formData });
+        toggleSettings();
+        alert('Settings Saved');
     }
 </script>
 </body>

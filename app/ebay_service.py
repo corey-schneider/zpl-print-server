@@ -14,12 +14,10 @@ logger = logging.getLogger(__name__)
 class EBayAPI:
     """Secure eBay API client for shipping label retrieval."""
     
-    # eBay endpoints - Set USE_SANDBOX=True for sandbox, False for production
-    USE_SANDBOX = True  # Change to False for production
-    
-    OAUTH_ENDPOINT = "https://api.sandbox.ebay.com/identity/v1/oauth2/token" if USE_SANDBOX else "https://api.ebay.com/identity/v1/oauth2/token"
-    FULFILLMENT_ENDPOINT = "https://api.sandbox.ebay.com/sell/fulfillment/v1" if USE_SANDBOX else "https://api.ebay.com/sell/fulfillment/v1"
-    LOGISTICS_ENDPOINT = "https://api.sandbox.ebay.com/sell/logistics/v1" if USE_SANDBOX else "https://api.ebay.com/sell/logistics/v1"
+    # Production eBay endpoints
+    OAUTH_ENDPOINT = "https://api.ebay.com/identity/v1/oauth2/token"
+    FULFILLMENT_ENDPOINT = "https://api.ebay.com/sell/fulfillment/v1"
+    LOGISTICS_ENDPOINT = "https://api.ebay.com/sell/logistics/v1"
     
     def __init__(self, app_id: str, cert_id: str, user_token: str, refresh_token: str = None):
         self.app_id = app_id
@@ -91,10 +89,6 @@ class EBayAPI:
             # Use refresh token if available, otherwise use user token
             token_to_use = self.refresh_token or self.user_token
             
-            logger.info(f"Refreshing token with app_id length: {len(self.app_id)}, cert_id length: {len(self.cert_id)}")
-            logger.info(f"Token to use (first 20 chars): {token_to_use[:20] if token_to_use else 'NONE'}...")
-            logger.info(f"Using refresh_token: {bool(self.refresh_token)}")
-            
             data = {
                 "grant_type": "refresh_token" if self.refresh_token else "authorization_code",
                 "refresh_token": token_to_use if self.refresh_token else None,
@@ -119,7 +113,6 @@ class EBayAPI:
                 if "refresh_token" in result:
                     self.refresh_token = result["refresh_token"]
                 
-                logger.info(f"Token refresh successful, expires in {expires_in}s")
                 return True
             else:
                 logger.error(f"Token refresh failed: {response.status_code} - {response.text}")
@@ -381,56 +374,4 @@ class EBayAPI:
             return {
                 "status": "error",
                 "message": str(e)
-            }
-    
-    @staticmethod
-    async def exchange_authorization_code(app_id: str, cert_id: str, auth_code: str, redirect_uri: str) -> dict:
-        """Exchange eBay authorization code for access and refresh tokens."""
-        try:
-            # eBay OAuth endpoint data
-            data = {
-                "grant_type": "authorization_code",
-                "code": auth_code,
-                "redirect_uri": redirect_uri
-            }
-            
-            logger.info(f"OAuth token exchange: endpoint={EBayAPI.OAUTH_ENDPOINT}, code={auth_code[:20]}..., redirect_uri={redirect_uri}")
-            
-            response = requests.post(
-                EBayAPI.OAUTH_ENDPOINT,
-                auth=(app_id, cert_id),
-                data=data,  # eBay OAuth uses form data, not JSON
-                timeout=10
-            )
-            
-            logger.info(f"OAuth response status: {response.status_code}")
-            
-            if response.status_code == 200:
-                result = response.json()
-                logger.info(f"OAuth successful - got access token")
-                return {
-                    "success": True,
-                    "access_token": result.get("access_token"),
-                    "refresh_token": result.get("refresh_token"),
-                    "expires_in": result.get("expires_in", 3600)
-                }
-            else:
-                error_detail = response.text
-                logger.error(f"OAuth code exchange failed: {response.status_code}")
-                logger.error(f"Response body: {error_detail}")
-                try:
-                    error_json = response.json()
-                    error_detail = str(error_json)
-                except:
-                    pass
-                return {
-                    "success": False,
-                    "error": f"Authorization failed: {response.status_code}",
-                    "details": error_detail
-                }
-        except Exception as e:
-            logger.error(f"OAuth code exchange exception: {e}", exc_info=True)
-            return {
-                "success": False,
-                "error": str(e)
             }

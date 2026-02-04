@@ -35,6 +35,6 @@ def decrypt_value(value: str) -> str:
     try:
         return cipher.decrypt(value.encode()).decode()
     except Exception as e:
-        # If decryption fails, return empty string
-        # This prevents showing encrypted gibberish in forms
-        return ""
+        # If decryption fails, return the original value
+        # (useful for migration from unencrypted to encrypted)
+        return value
